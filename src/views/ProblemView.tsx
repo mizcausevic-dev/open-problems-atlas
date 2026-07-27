@@ -4,17 +4,27 @@
  * Layout intent: source material on the left, your own work on the right. The
  * two never blend visually, because the whole point is that a reader can tell
  * at a glance which parts are Wikipedia's and which are theirs.
+ *
+ * This page used to be the thinnest surface in the app — often one sentence and
+ * two links. It now carries the lead section of the problem's own Wikipedia
+ * article (loaded on demand from a separate chunk), the citations parsed from
+ * the source list, related problems derived from real relationships, and a
+ * record-metadata panel. Everything still comes from the generated dataset; no
+ * new runtime request was added except the pageview call that was already here.
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ArrowLeft, BarChart3, ExternalLink as ExternalIcon, FileText, Loader2, Plus,
-  RefreshCw, Star, Trash2,
+  ArrowLeft, BarChart3, BookText, ExternalLink as ExternalIcon, FileText, FlaskConical,
+  GitBranch, Loader2, Plus, RefreshCw, Star, Trash2,
 } from 'lucide-react';
 import type { Dataset, Pageviews, Problem, Remote, TrackState } from '../types';
 import { TRACK_STATES } from '../types';
 import { store } from '../lib/storage';
 import { fetchPageviews } from '../lib/pageviews';
+import { useExtract } from '../lib/extracts';
+import { findRelated } from '../lib/related';
+import { LAB_PROBLEM_IDS, COLLECTIONS, collectionMembers } from '../lib/collections';
 import { TRACK_HINT, TRACK_LABEL } from '../lib/fields';
 import { href } from '../lib/router';
 import {
@@ -28,8 +38,9 @@ interface Props {
   dataset: Dataset;
   dark: boolean;
   online: boolean;
-  onOpen: (id: string) => void;
 }
+
+const SOURCE_ARTICLE_URL = 'https://en.wikipedia.org/wiki/List_of_unsolved_problems_in_mathematics';
 
 const wikiUrl = (p: Problem): string | null =>
   p.wikipediaTitle
@@ -38,10 +49,7 @@ const wikiUrl = (p: Problem): string | null =>
       }`
     : null;
 
-/** The article this problem was listed in, for entries with no article of their own. */
-const SOURCE_ARTICLE_URL = 'https://en.wikipedia.org/wiki/List_of_unsolved_problems_in_mathematics';
-
-export default function ProblemView({ problem, dataset, dark, online, onOpen }: Props) {
+export default function ProblemView({ problem, dataset, dark, online }: Props) {
   if (!problem) {
     return (
       <EmptyState icon={<FileText className="size-8" />} title="No such problem in this dataset">
@@ -54,8 +62,10 @@ export default function ProblemView({ problem, dataset, dark, online, onOpen }: 
     );
   }
 
-  const tracked = store.tracked(problem.id);
-  const notes = store.journalFor(problem.id);
+  const related = useMemo(
+    () => findRelated(problem, dataset.problems, 6),
+    [problem, dataset.problems],
+  );
 
   const children = useMemo(
     () => dataset.problems.filter((p) => p.parentId === problem.id),
@@ -64,6 +74,14 @@ export default function ProblemView({ problem, dataset, dark, online, onOpen }: 
   const parent = problem.parentId
     ? dataset.problems.find((p) => p.id === problem.parentId)
     : undefined;
+
+  const memberOf = useMemo(
+    () => COLLECTIONS.filter((c) => collectionMembers(c, dataset.problems).some((p) => p.id === problem.id)),
+    [dataset.problems, problem.id],
+  );
+
+  const labTools = LAB_PROBLEM_IDS[problem.id] ?? [];
+  const notes = store.journalFor(problem.id);
 
   return (
     <div className="space-y-6">
@@ -75,7 +93,7 @@ export default function ProblemView({ problem, dataset, dark, online, onOpen }: 
         <ArrowLeft className="size-4" aria-hidden /> Atlas
       </a>
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1.65fr)_minmax(0,1fr)]">
         {/* ---- Source material -------------------------------------------- */}
         <div className="min-w-0 space-y-5">
           <header>
@@ -88,9 +106,12 @@ export default function ProblemView({ problem, dataset, dark, online, onOpen }: 
               <FieldChip field={problem.field} dark={dark} />
               {problem.subfield && <Chip>{problem.subfield}</Chip>}
               <StatusChip status={problem.status} />
+              {problem.depth > 1 && problem.parentId && (
+                <Chip title="Listed as a sub-case in the source article">sub-case</Chip>
+              )}
             </div>
 
-            <h1 className="mt-3 text-2xl leading-tight font-semibold tracking-tight text-ink-strong sm:text-3xl">
+            <h1 className="mt-3 text-2xl leading-tight font-semibold tracking-tight text-ink-strong sm:text-[2rem]">
               {problem.title}
             </h1>
 
@@ -100,18 +121,29 @@ export default function ProblemView({ problem, dataset, dark, online, onOpen }: 
                 source article lists this problem outside its by-field taxonomy.
               </p>
             )}
+
+            {labTools.length > 0 && (
+              <a
+                href={href({ name: 'lab', tool: labTools[0] })}
+                className="mt-3 inline-flex items-center gap-2 rounded-lg border border-accent/40 bg-accent-soft px-3 py-2 text-sm font-medium text-accent-ink transition-colors hover:border-accent"
+              >
+                <FlaskConical className="size-4" aria-hidden />
+                Compute against this in the Lab
+              </a>
+            )}
           </header>
 
           <Panel className="p-4 sm:p-5">
-            <SectionTitle hint="Wikipedia, verbatim apart from markup cleanup">Statement</SectionTitle>
+            <SectionTitle hint="From the list article, verbatim apart from markup cleanup">
+              As the list states it
+            </SectionTitle>
             {problem.description ? (
               <div className="min-w-0 text-[15px] leading-relaxed text-ink">
                 <RichText>{problem.description}</RichText>
               </div>
             ) : (
               <p className="text-sm text-ink-dim italic">
-                The source article lists this problem by name only. Follow the article link for the
-                full statement.
+                The source article lists this problem by name only.
               </p>
             )}
 
@@ -144,6 +176,8 @@ export default function ProblemView({ problem, dataset, dark, online, onOpen }: 
             </div>
           </Panel>
 
+          <ExtendedContext problem={problem} />
+
           {problem.variants && problem.variants.length > 0 && (
             <Panel className="p-4 sm:p-5">
               <SectionTitle hint="The source article lists this article more than once, with different outcomes">
@@ -172,49 +206,75 @@ export default function ProblemView({ problem, dataset, dark, online, onOpen }: 
               </ul>
               <Note>
                 These are kept separate rather than merged into one status, because merging them
-                would assert something the source does not say.
+                would assert something the source does not.
               </Note>
             </Panel>
           )}
 
-          {problem.references && problem.references.length > 0 && (
+          {related.length > 0 && (
             <Panel className="p-4 sm:p-5">
-              <SectionTitle hint="Citations carried over from the source article">References</SectionTitle>
-              <ul className="space-y-2 text-sm">
-                {problem.references.map((r, i) => (
-                  <li key={i} className="min-w-0 text-ink-dim">
-                    {r.url ? <ExternalLink href={r.url}>{r.title ?? r.url}</ExternalLink> : r.title}
-                    {r.year && <span className="ml-1.5 font-mono text-xs">({r.year})</span>}
-                    {r.doi && (
-                      <span className="ml-1.5 font-mono text-xs">
-                        doi:<ExternalLink href={`https://doi.org/${r.doi}`}>{r.doi}</ExternalLink>
-                      </span>
-                    )}
-                    {r.arxiv && (
-                      <span className="ml-1.5 font-mono text-xs">
-                        arXiv:<ExternalLink href={`https://arxiv.org/abs/${r.arxiv}`}>{r.arxiv}</ExternalLink>
-                      </span>
-                    )}
+              <SectionTitle hint="Derived from links, shared solvers and classification in the source, not from a similarity model">
+                Related problems
+              </SectionTitle>
+              <ul className="divide-y divide-line">
+                {related.map(({ problem: r, reasons }) => (
+                  <li key={r.id}>
+                    <a
+                      href={href({ name: 'problem', id: r.id })}
+                      className="-mx-2 block rounded-lg px-2 py-2.5 transition-colors hover:bg-panel-2"
+                    >
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <FieldChip field={r.field} dark={dark} short />
+                        <StatusChip status={r.status} />
+                      </div>
+                      <p className="mt-1 font-medium text-ink-strong">{r.title}</p>
+                      <p className="mt-0.5 text-xs text-ink-dim">{reasons.slice(0, 2).join(' · ')}</p>
+                    </a>
                   </li>
                 ))}
               </ul>
             </Panel>
           )}
 
+          {problem.references && problem.references.length > 0 && (
+            <Panel className="p-4 sm:p-5">
+              <SectionTitle hint="Citations carried over from the source article">References</SectionTitle>
+              <ol className="space-y-2.5 text-sm">
+                {problem.references.map((r, i) => (
+                  <li key={i} className="flex min-w-0 gap-2.5 text-ink-dim">
+                    <span className="shrink-0 font-mono text-xs text-accent">[{i + 1}]</span>
+                    <span className="min-w-0">
+                      {r.url ? <ExternalLink href={r.url}>{r.title ?? r.url}</ExternalLink> : r.title}
+                      {r.year && <span className="ml-1.5 font-mono text-xs">({r.year})</span>}
+                      {r.doi && (
+                        <span className="ml-1.5 font-mono text-xs">
+                          doi:<ExternalLink href={`https://doi.org/${r.doi}`}>{r.doi}</ExternalLink>
+                        </span>
+                      )}
+                      {r.arxiv && (
+                        <span className="ml-1.5 font-mono text-xs">
+                          arXiv:<ExternalLink href={`https://arxiv.org/abs/${r.arxiv}`}>{r.arxiv}</ExternalLink>
+                        </span>
+                      )}
+                    </span>
+                  </li>
+                ))}
+              </ol>
+            </Panel>
+          )}
+
           {(parent || children.length > 0 || (problem.relatedTopics?.length ?? 0) > 0) && (
             <Panel className="p-4 sm:p-5">
-              <SectionTitle>Nearby</SectionTitle>
+              <SectionTitle hint="Structure and topic links taken straight from the source bullet">
+                Nearby
+              </SectionTitle>
               <div className="space-y-3">
                 {parent && (
                   <div>
                     <p className="mb-1 text-xs text-ink-dim">Listed as a sub-case of</p>
-                    <button
-                      type="button"
-                      onClick={() => onOpen(parent.id)}
-                      className="text-sm text-accent hover:underline"
-                    >
+                    <a href={href({ name: 'problem', id: parent.id })} className="text-sm text-accent hover:underline">
                       {parent.title}
-                    </button>
+                    </a>
                   </div>
                 )}
                 {children.length > 0 && (
@@ -223,13 +283,9 @@ export default function ProblemView({ problem, dataset, dark, online, onOpen }: 
                     <ul className="space-y-1">
                       {children.map((c) => (
                         <li key={c.id}>
-                          <button
-                            type="button"
-                            onClick={() => onOpen(c.id)}
-                            className="text-left text-sm text-accent hover:underline"
-                          >
+                          <a href={href({ name: 'problem', id: c.id })} className="text-sm text-accent hover:underline">
                             {c.title}
-                          </button>
+                          </a>
                         </li>
                       ))}
                     </ul>
@@ -262,8 +318,6 @@ export default function ProblemView({ problem, dataset, dark, online, onOpen }: 
         <div className="min-w-0 space-y-5" data-print="hide">
           <TrackPanel problem={problem} />
           <NotesPanel problem={problem} />
-          {/* No article means no pageview series to ask for, so the panel is
-              omitted rather than shown permanently empty. */}
           {problem.wikipediaTitle && (
             <AttentionPanel
               wikipediaTitle={problem.wikipediaTitle}
@@ -271,10 +325,10 @@ export default function ProblemView({ problem, dataset, dark, online, onOpen }: 
               online={online}
             />
           )}
+          <RecordPanel problem={problem} memberOf={memberOf} childCount={children.length} relatedCount={related.length} />
         </div>
       </div>
 
-      {/* Notes render below the fold in print, where the two-column layout collapses. */}
       {notes.length > 0 && (
         <div className="hidden print:block">
           <h2 className="mb-2 text-lg font-semibold">Notes</h2>
@@ -286,8 +340,162 @@ export default function ProblemView({ problem, dataset, dark, online, onOpen }: 
           ))}
         </div>
       )}
-      {tracked && <span className="sr-only">Tracked as {TRACK_LABEL[tracked.state]}</span>}
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+
+/**
+ * The lead section of the problem's own Wikipedia article.
+ *
+ * Loaded from a separate chunk on demand, so the atlas does not carry 520 KB of
+ * prose it never shows. When the link points at a section of a broader article,
+ * the lead is about that whole article — which the panel says outright rather
+ * than letting a reader assume it was written about this problem.
+ */
+function ExtendedContext({ problem }: { problem: Problem }) {
+  const state = useExtract(problem.id);
+
+  if (state.kind === 'idle') return null;
+
+  if (state.kind === 'loading') {
+    return (
+      <Panel className="p-4 sm:p-5">
+        <SectionTitle>Background</SectionTitle>
+        <p className="flex items-center gap-2 text-sm text-ink-dim">
+          <Loader2 className="size-4 animate-spin" aria-hidden />
+          Loading the article's introduction…
+        </p>
+      </Panel>
+    );
+  }
+
+  if (state.kind === 'error') {
+    return (
+      <Panel className="p-4 sm:p-5">
+        <SectionTitle>Background</SectionTitle>
+        <Note tone="warn">{state.message}</Note>
+      </Panel>
+    );
+  }
+
+  // Loaded fine, but this problem has no article extract. 42 of 591 have none.
+  if (!state.value) return null;
+
+  const { text, truncated, resolvedTitle, scope } = state.value;
+  const paragraphs = text.split(/\n+/).filter(Boolean);
+
+  return (
+    <Panel className="p-4 sm:p-5">
+      <SectionTitle
+        hint={
+          scope === 'article'
+            ? `Introduction to “${resolvedTitle}”, the article this problem is a section of`
+            : `Introduction to the Wikipedia article “${resolvedTitle}”`
+        }
+      >
+        <BookText className="mr-1.5 inline size-4" aria-hidden />
+        Background
+      </SectionTitle>
+
+      <div className="min-w-0 space-y-3 text-[15px] leading-relaxed text-ink">
+        {paragraphs.map((para, i) => (
+          <p key={i}>
+            <RichText>{para}</RichText>
+          </p>
+        ))}
+      </div>
+
+      {scope === 'article' && (
+        <Note tone="warn">
+          This problem is listed as a section of a broader article, so the text above describes that
+          article as a whole rather than this problem specifically.
+        </Note>
+      )}
+      {truncated && (
+        <p className="mt-3 text-xs text-ink-dim">
+          Trimmed at a sentence boundary. Follow the article link for the rest.
+        </p>
+      )}
+    </Panel>
+  );
+}
+
+// ---------------------------------------------------------------------------
+
+/**
+ * Facts about the record, not about the mathematics.
+ *
+ * Deliberately not a "difficulty" or "prize" panel. The review asked for prize
+ * and difficulty metadata; the source list carries neither — a search for
+ * prize, bounty and dollar amounts across all 591 entries returns nothing
+ * beyond the Millennium flag, and no difficulty rating exists for an unsolved
+ * problem. Inventing either would be exactly the failure this app exists to
+ * avoid, so what is shown instead is how complete this record is.
+ */
+function RecordPanel({
+  problem,
+  memberOf,
+  childCount,
+  relatedCount,
+}: {
+  problem: Problem;
+  memberOf: { slug: string; title: string }[];
+  childCount: number;
+  relatedCount: number;
+}) {
+  const rows: { label: string; value: string }[] = [
+    { label: 'Field', value: problem.field + (problem.subfield ? ` · ${problem.subfield}` : '') },
+    { label: 'Classification from', value: problem.fieldSource === 'curated' ? 'this app (stated)' : 'a section heading' },
+    { label: 'Own article', value: problem.wikipediaTitle ? 'yes' : 'stated inline only' },
+    { label: 'Citations', value: String(problem.references?.length ?? 0) },
+    { label: 'Sub-cases', value: String(childCount) },
+    { label: 'Related entries', value: String(relatedCount) },
+  ];
+  if (problem.alsoIn?.length) {
+    rows.push({ label: 'Also listed under', value: problem.alsoIn.join(', ') });
+  }
+
+  return (
+    <Panel className="p-4">
+      <SectionTitle hint="How complete this record is, not how hard the problem is">
+        <GitBranch className="mr-1.5 inline size-4" aria-hidden />
+        The record
+      </SectionTitle>
+
+      <dl className="space-y-1.5 text-sm">
+        {rows.map((r) => (
+          <div key={r.label} className="flex justify-between gap-3">
+            <dt className="text-ink-dim">{r.label}</dt>
+            <dd className="text-right font-mono text-xs text-ink">{r.value}</dd>
+          </div>
+        ))}
+      </dl>
+
+      {memberOf.length > 0 && (
+        <div className="mt-3 border-t border-line pt-3">
+          <p className="mb-1.5 text-[11px] tracking-wide text-ink-dim uppercase">Appears in</p>
+          <div className="flex flex-wrap gap-1.5">
+            {memberOf.map((c) => (
+              <a
+                key={c.slug}
+                href={href({ name: 'collection', slug: c.slug })}
+                className="rounded-full border border-line bg-panel-2 px-2.5 py-1 text-xs text-ink-dim hover:border-accent/60 hover:text-ink-strong"
+              >
+                {c.title}
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <Note>
+        No prize or difficulty rating is shown because the source list carries neither. Beyond the
+        Millennium flag there is no prize data in the article to surface, and nothing can rate the
+        difficulty of an unsolved problem.
+      </Note>
+    </Panel>
   );
 }
 
@@ -313,7 +521,7 @@ function TrackPanel({ problem }: { problem: Problem }) {
               className={`rounded-lg border px-2.5 py-1.5 text-xs transition-colors ${
                 on
                   ? 'border-accent bg-accent-soft font-semibold text-accent-ink'
-                  : 'border-line bg-panel-2 text-ink-dim hover:text-ink-strong'
+                  : 'border-line bg-panel-2 text-ink-dim hover:border-accent/40 hover:text-ink-strong'
               }`}
             >
               {TRACK_LABEL[s]}
@@ -359,7 +567,9 @@ function TrackPanel({ problem }: { problem: Problem }) {
             </p>
             <div className="flex flex-wrap items-center gap-2">
               <span className="font-mono text-lg text-ink-strong">
-                {tracked.minutesLogged ? `${Math.floor(tracked.minutesLogged / 60)}h ${tracked.minutesLogged % 60}m` : '0h 0m'}
+                {tracked.minutesLogged
+                  ? `${Math.floor(tracked.minutesLogged / 60)}h ${tracked.minutesLogged % 60}m`
+                  : '0h 0m'}
               </span>
               {[15, 30, 60].map((m) => (
                 <Button key={m} size="sm" onClick={() => store.addMinutes(problem.id, m)}>
@@ -427,6 +637,7 @@ function NotesPanel({ problem }: { problem: Problem }) {
             value={draftTitle}
             onChange={(e) => setDraftTitle(e.target.value)}
             aria-label="Note title"
+            autoComplete="off"
             className="w-full rounded-lg border border-line bg-panel-2 px-3 py-2 text-sm font-medium text-ink-strong focus:border-accent focus:outline-none"
           />
           <textarea
@@ -435,6 +646,7 @@ function NotesPanel({ problem }: { problem: Problem }) {
             onChange={(e) => setDraft(e.target.value)}
             rows={10}
             aria-label="Note body"
+            spellCheck={false}
             placeholder={'Suppose $\\zeta(s) = 0$ with $0 < \\Re(s) < 1$.\n\n$$\\zeta(s) = \\prod_p \\frac{1}{1 - p^{-s}}$$'}
             className="w-full resize-y rounded-lg border border-line bg-panel-2 px-3 py-2 font-mono text-sm text-ink focus:border-accent focus:outline-none"
           />
@@ -585,7 +797,9 @@ function AttentionPanel({
           <dl className="grid grid-cols-2 gap-3 text-sm">
             <div>
               <dt className="text-[11px] tracking-wide text-ink-dim uppercase">Mean daily</dt>
-              <dd className="font-mono text-lg text-ink-strong">{fmt.format(Math.round(state.value.mean))}</dd>
+              <dd className="font-mono text-lg text-ink-strong">
+                {fmt.format(Math.round(state.value.mean))}
+              </dd>
             </div>
             <div>
               <dt className="text-[11px] tracking-wide text-ink-dim uppercase">Last 14d vs prior</dt>

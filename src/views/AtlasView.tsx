@@ -1,65 +1,95 @@
 /**
- * The atlas: search and filter the whole problem set.
+ * The atlas: search, filter and sort the whole problem set.
  *
- * Rendering note: ~600 rows each containing KaTeX-typeset prose is enough DOM to
- * be felt on a phone, so the list renders in pages of 60 with an explicit
- * "show more". A button beats infinite scroll here because the result count is
- * knowable and shown, so the user can see how much is left rather than
- * discovering it by scrolling.
+ * All of the view state lives in the URL rather than in useState, so a filtered
+ * view is a link. "Open number-theory problems, settled-newest, matching prime"
+ * is a thing one person can send another, and the back button steps through
+ * filter changes the way a reader expects.
+ *
+ * Rendering note: ~600 rows of KaTeX-typeset prose is enough DOM to be felt on
+ * a phone, so the list pages in 60s and each row carries `content-visibility:
+ * auto`. A button beats infinite scroll because the result count is knowable
+ * and shown, so a reader can see how much is left rather than discovering it by
+ * scrolling.
  */
 
-import { useDeferredValue, useMemo, useState } from 'react';
-import { Filter, Search, Star, X } from 'lucide-react';
-import type { Dataset, Problem } from '../types';
-import { DEFAULT_FILTERS, filterProblems, type Filters } from '../lib/search';
+import { useDeferredValue, useEffect, useMemo, useState } from 'react';
+import { ArrowUpDown, Dices, Filter, Search, X } from 'lucide-react';
+import type { Dataset } from '../types';
+import { TRACK_STATES } from '../types';
+import {
+  activeFilterCount,
+  atlasStateFromParams,
+  atlasStateToParams,
+  filterProblems,
+  sortProblems,
+  SORT_OPTIONS,
+  type AtlasState,
+  type SortKey,
+} from '../lib/search';
+import { randomProblem } from '../lib/collections';
 import { store } from '../lib/storage';
 import { TRACK_LABEL } from '../lib/fields';
-import { TRACK_STATES } from '../types';
-import { Button, Chip, EmptyState, FieldChip, StatusChip, fmt } from '../components/ui';
-import { RichText } from '../components/Tex';
+import { Button, EmptyState, fmt } from '../components/ui';
+import { ProblemRow } from '../components/ProblemRow';
 
 const PAGE = 60;
 
 interface Props {
   dataset: Dataset;
   dark: boolean;
+  query: URLSearchParams;
+  setQuery: (params: Record<string, string | undefined>) => void;
   onOpen: (id: string) => void;
 }
 
-export default function AtlasView({ dataset, dark, onOpen }: Props) {
-  const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
-  const [shown, setShown] = useState(PAGE);
-  const [filtersOpen, setFiltersOpen] = useState(false);
-
-  // Typing stays responsive: the input updates immediately, the full-dataset scan
-  // runs against the deferred value.
-  const deferredQuery = useDeferredValue(filters.query);
-
-  const tracked = store.all().tracked;
-
-  const results = useMemo(
-    () => filterProblems(dataset.problems, { ...filters, query: deferredQuery }, tracked),
-    [dataset.problems, filters, deferredQuery, tracked],
+export default function AtlasView({ dataset, dark, query, setQuery, onOpen }: Props) {
+  const state = useMemo(
+    () => atlasStateFromParams(query, dataset.meta.fields),
+    [query, dataset.meta.fields],
   );
 
-  const update = (patch: Partial<Filters>) => {
-    setFilters((f) => ({ ...f, ...patch }));
+  const [shown, setShown] = useState(PAGE);
+  const [panelOpen, setPanelOpen] = useState<'filters' | 'sort' | null>(null);
+
+  // The input is uncontrolled-ish: it holds its own value for instant feedback
+  // and pushes to the URL, because writing every keystroke through the router
+  // and back adds a frame of lag to typing.
+  const [draftQuery, setDraftQuery] = useState(state.query);
+  useEffect(() => setDraftQuery(state.query), [state.query]);
+
+  const deferredQuery = useDeferredValue(draftQuery);
+  const tracked = store.all().tracked;
+
+  const update = (patch: Partial<AtlasState>) => {
+    setQuery(atlasStateToParams({ ...state, ...patch }));
     setShown(PAGE);
   };
 
+  // Debounce the URL write so typing does not thrash history or the router.
+  useEffect(() => {
+    if (draftQuery === state.query) return;
+    const id = setTimeout(() => update({ query: draftQuery }), 220);
+    return () => clearTimeout(id);
+  }, [draftQuery]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const results = useMemo(() => {
+    const filtered = filterProblems(
+      dataset.problems,
+      { ...state, query: deferredQuery },
+      tracked,
+    );
+    return sortProblems(filtered, state.sort, dataset.meta.fields);
+  }, [dataset.problems, dataset.meta.fields, state, deferredQuery, tracked]);
+
   const toggleField = (field: string) =>
     update({
-      fields: filters.fields.includes(field)
-        ? filters.fields.filter((f) => f !== field)
-        : [...filters.fields, field],
+      fields: state.fields.includes(field)
+        ? state.fields.filter((f) => f !== field)
+        : [...state.fields, field],
     });
 
-  const activeCount =
-    filters.fields.length +
-    (filters.status !== 'all' ? 1 : 0) +
-    (filters.millenniumOnly ? 1 : 0) +
-    (filters.tracking !== 'any' ? 1 : 0) +
-    (filters.topLevelOnly ? 1 : 0);
+  const activeCount = activeFilterCount(state);
 
   const fieldCounts = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -67,50 +97,111 @@ export default function AtlasView({ dataset, dark, onOpen }: Props) {
     return counts;
   }, [dataset.problems]);
 
+  const surprise = () => {
+    const p = randomProblem(results);
+    if (p) onOpen(p.id);
+  };
+
+  const sortLabel = SORT_OPTIONS.find((o) => o.key === state.sort)?.label ?? 'Best match';
+  const showYear = state.sort === 'settled-new' || state.sort === 'settled-old';
+
   return (
     <div className="space-y-5">
       <header className="max-w-3xl">
         <h1 className="text-2xl font-semibold tracking-tight text-ink-strong sm:text-3xl">
-          Every open problem on the list, in one place
+          The atlas
         </h1>
         <p className="mt-2 text-sm leading-relaxed text-ink-dim">
-          {fmt.format(dataset.meta.counts.total)} problems parsed from the source article, of which{' '}
-          {fmt.format(dataset.meta.counts.open)} are open and {dataset.meta.counts.solved} have been
-          settled since 1995. Track whichever ones you are actually working on; everything you record
-          stays in this browser.
+          {fmt.format(dataset.meta.counts.total)} problems parsed from the source article. Filters
+          and sort order live in the address bar, so any view you build here is a link you can send.
         </p>
       </header>
 
-      {/* Search + filter controls */}
+      {/* ---- Controls ------------------------------------------------------ */}
       <div className="space-y-3">
-        <div className="flex gap-2">
-          <div className="relative flex-1">
+        <div className="flex flex-wrap gap-2">
+          <div className="relative min-w-[min(100%,16rem)] flex-1">
             <Search
               className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-ink-dim"
               aria-hidden
             />
             <input
+              id="atlas-search"
               type="search"
-              value={filters.query}
-              onChange={(e) => update({ query: e.target.value })}
+              name="q"
+              value={draftQuery}
+              onChange={(e) => setDraftQuery(e.target.value)}
               placeholder={`Search ${fmt.format(dataset.meta.counts.total)} problems: riemann, perelman, graph colouring…`}
               aria-label="Search problems"
-              className="w-full rounded-xl border border-line bg-panel py-2.5 pr-3 pl-9 text-sm text-ink placeholder:text-ink-dim focus:border-accent focus:outline-none"
+              autoComplete="off"
+              spellCheck={false}
+              className="w-full rounded-xl border border-line bg-panel py-2.5 pr-9 pl-9 text-sm text-ink placeholder:text-ink-dim hover:border-line focus:border-accent focus:outline-none"
             />
+            {draftQuery && (
+              <button
+                type="button"
+                onClick={() => setDraftQuery('')}
+                aria-label="Clear search"
+                className="absolute top-1/2 right-2 -translate-y-1/2 rounded-md p-1 text-ink-dim hover:bg-panel-2 hover:text-ink-strong"
+              >
+                <X className="size-3.5" aria-hidden />
+              </button>
+            )}
           </div>
+
           <Button
-            onClick={() => setFiltersOpen((v) => !v)}
+            onClick={() => setPanelOpen(panelOpen === 'sort' ? null : 'sort')}
+            pressed={panelOpen === 'sort'}
+            className="shrink-0"
+          >
+            <ArrowUpDown className="size-4" aria-hidden />
+            <span className="hidden sm:inline">{sortLabel}</span>
+          </Button>
+
+          <Button
+            onClick={() => setPanelOpen(panelOpen === 'filters' ? null : 'filters')}
             variant={activeCount ? 'primary' : 'ghost'}
-            pressed={filtersOpen}
+            pressed={panelOpen === 'filters'}
             className="shrink-0"
           >
             <Filter className="size-4" aria-hidden />
             <span className="hidden sm:inline">Filters</span>
             {activeCount > 0 && <span className="font-mono">{activeCount}</span>}
           </Button>
+
+          <Button onClick={surprise} title="Open a random problem from the current results" className="shrink-0">
+            <Dices className="size-4" aria-hidden />
+            <span className="sr-only sm:not-sr-only">Random</span>
+          </Button>
         </div>
 
-        {filtersOpen && (
+        {panelOpen === 'sort' && (
+          <fieldset className="rounded-xl border border-line bg-panel p-4">
+            <legend className="mb-2 text-[11px] font-semibold tracking-wide text-ink-dim uppercase">
+              Order
+            </legend>
+            <div className="grid gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
+              {SORT_OPTIONS.map((o) => (
+                <button
+                  key={o.key}
+                  type="button"
+                  onClick={() => update({ sort: o.key as SortKey })}
+                  aria-pressed={state.sort === o.key}
+                  className={`rounded-lg border px-3 py-2 text-left transition-colors ${
+                    state.sort === o.key
+                      ? 'border-accent bg-accent-soft text-accent-ink'
+                      : 'border-line bg-panel-2 hover:border-accent/40'
+                  }`}
+                >
+                  <span className="block text-sm font-medium">{o.label}</span>
+                  <span className="block text-[11px] text-ink-dim">{o.hint}</span>
+                </button>
+              ))}
+            </div>
+          </fieldset>
+        )}
+
+        {panelOpen === 'filters' && (
           <div className="space-y-4 rounded-xl border border-line bg-panel p-4">
             <fieldset>
               <legend className="mb-2 text-[11px] font-semibold tracking-wide text-ink-dim uppercase">
@@ -120,7 +211,7 @@ export default function AtlasView({ dataset, dark, onOpen }: Props) {
                   hides options off-screen on exactly the devices with least room. */}
               <div className="flex flex-wrap gap-1.5">
                 {dataset.meta.fields.map((field) => {
-                  const on = filters.fields.includes(field);
+                  const on = state.fields.includes(field);
                   return (
                     <button
                       key={field}
@@ -130,11 +221,10 @@ export default function AtlasView({ dataset, dark, onOpen }: Props) {
                       className={`rounded-full border px-2.5 py-1 text-xs transition-colors ${
                         on
                           ? 'border-accent bg-accent-soft font-medium text-accent-ink'
-                          : 'border-line bg-panel-2 text-ink-dim hover:text-ink-strong'
+                          : 'border-line bg-panel-2 text-ink-dim hover:border-accent/40 hover:text-ink-strong'
                       }`}
                     >
-                      {field}{' '}
-                      <span className="font-mono opacity-60">{fieldCounts[field] ?? 0}</span>
+                      {field} <span className="font-mono opacity-60">{fieldCounts[field] ?? 0}</span>
                     </button>
                   );
                 })}
@@ -152,14 +242,14 @@ export default function AtlasView({ dataset, dark, onOpen }: Props) {
                       key={s}
                       type="button"
                       onClick={() => update({ status: s })}
-                      aria-pressed={filters.status === s}
-                      className={`rounded-full border px-2.5 py-1 text-xs capitalize transition-colors ${
-                        filters.status === s
+                      aria-pressed={state.status === s}
+                      className={`rounded-full border px-2.5 py-1 text-xs transition-colors ${
+                        state.status === s
                           ? 'border-accent bg-accent-soft font-medium text-accent-ink'
-                          : 'border-line bg-panel-2 text-ink-dim hover:text-ink-strong'
+                          : 'border-line bg-panel-2 text-ink-dim hover:border-accent/40 hover:text-ink-strong'
                       }`}
                     >
-                      {s === 'partially-solved' ? 'partly settled' : s}
+                      {s === 'partially-solved' ? 'Partly settled' : s === 'solved' ? 'Settled' : s === 'all' ? 'All' : 'Open'}
                     </button>
                   ))}
                 </div>
@@ -175,11 +265,11 @@ export default function AtlasView({ dataset, dark, onOpen }: Props) {
                       key={t}
                       type="button"
                       onClick={() => update({ tracking: t })}
-                      aria-pressed={filters.tracking === t}
-                      className={`rounded-full border px-2.5 py-1 text-xs transition-colors ${
-                        filters.tracking === t
+                      aria-pressed={state.tracking === t}
+                      className={`rounded-full border px-2.5 py-1 text-xs capitalize transition-colors ${
+                        state.tracking === t
                           ? 'border-accent bg-accent-soft font-medium text-accent-ink'
-                          : 'border-line bg-panel-2 text-ink-dim hover:text-ink-strong'
+                          : 'border-line bg-panel-2 text-ink-dim hover:border-accent/40 hover:text-ink-strong'
                       }`}
                     >
                       {TRACK_LABEL[t] ?? t}
@@ -193,7 +283,7 @@ export default function AtlasView({ dataset, dark, onOpen }: Props) {
               <label className="flex cursor-pointer items-center gap-2 text-xs text-ink">
                 <input
                   type="checkbox"
-                  checked={filters.millenniumOnly}
+                  checked={state.millenniumOnly}
                   onChange={(e) => update({ millenniumOnly: e.target.checked })}
                   className="size-4 accent-[var(--c-accent)]"
                 />
@@ -202,15 +292,19 @@ export default function AtlasView({ dataset, dark, onOpen }: Props) {
               <label className="flex cursor-pointer items-center gap-2 text-xs text-ink">
                 <input
                   type="checkbox"
-                  checked={filters.topLevelOnly}
+                  checked={state.topLevelOnly}
                   onChange={(e) => update({ topLevelOnly: e.target.checked })}
                   className="size-4 accent-[var(--c-accent)]"
                 />
                 Hide sub-cases
               </label>
               {activeCount > 0 && (
-                <Button variant="quiet" size="sm" onClick={() => setFilters(DEFAULT_FILTERS)}>
-                  <X className="size-3.5" aria-hidden /> Clear all
+                <Button
+                  variant="quiet"
+                  size="sm"
+                  onClick={() => setQuery(atlasStateToParams({ ...state, fields: [], status: 'all', tracking: 'any', millenniumOnly: false, topLevelOnly: false, sort: 'relevance' }))}
+                >
+                  <X className="size-3.5" aria-hidden /> Clear filters
                 </Button>
               )}
             </div>
@@ -221,6 +315,7 @@ export default function AtlasView({ dataset, dark, onOpen }: Props) {
       <p className="text-xs text-ink-dim" role="status" aria-live="polite">
         {fmt.format(results.length)} {results.length === 1 ? 'problem' : 'problems'}
         {results.length !== dataset.problems.length && ` of ${fmt.format(dataset.problems.length)}`}
+        {state.sort !== 'relevance' && `, ${sortLabel.toLowerCase()}`}
       </p>
 
       {results.length === 0 ? (
@@ -232,7 +327,7 @@ export default function AtlasView({ dataset, dark, onOpen }: Props) {
         <>
           <ul className="space-y-2">
             {results.slice(0, shown).map((p) => (
-              <ProblemRow key={p.id} problem={p} dark={dark} onOpen={onOpen} />
+              <ProblemRow key={p.id} problem={p} dark={dark} showYear={showYear} />
             ))}
           </ul>
 
@@ -249,63 +344,3 @@ export default function AtlasView({ dataset, dark, onOpen }: Props) {
     </div>
   );
 }
-
-function ProblemRow({
-  problem,
-  dark,
-  onOpen,
-}: {
-  problem: Problem;
-  dark: boolean;
-  onOpen: (id: string) => void;
-}) {
-  const tracked = store.tracked(problem.id);
-
-  return (
-    <li>
-      <button
-        type="button"
-        onClick={() => onOpen(problem.id)}
-        className="w-full rounded-xl border border-line bg-panel p-3.5 text-left transition-colors hover:border-accent/50 hover:bg-panel-2 sm:p-4"
-      >
-        <div className="flex flex-wrap items-center gap-1.5">
-          {problem.millennium && (
-            <Chip tone="accent" title="One of the seven Clay Millennium Prize Problems">
-              <Star className="size-3" aria-hidden /> Millennium
-            </Chip>
-          )}
-          <FieldChip field={problem.field} dark={dark} />
-          <StatusChip status={problem.status} />
-          {problem.depth > 1 && (
-            <Chip title="Listed as a sub-case of a broader entry in the source article">
-              sub-case
-            </Chip>
-          )}
-          {tracked && <Chip tone="warn">{TRACK_LABEL[tracked.state]}</Chip>}
-        </div>
-
-        <h3 className="mt-2 leading-snug font-semibold text-ink-strong">{problem.title}</h3>
-
-        {problem.description ? (
-          // min-w-0 stops long unbroken maths from forcing the whole grid wider
-          // than the viewport, which zooms the layout out on mobile.
-          <p className="mt-1 line-clamp-3 min-w-0 text-sm leading-relaxed text-ink-dim">
-            <RichText>{problem.description}</RichText>
-          </p>
-        ) : (
-          <p className="mt-1 text-sm text-ink-dim italic">
-            The source article lists this without a description.
-          </p>
-        )}
-
-        {problem.status === 'solved' && problem.solvedBy && (
-          <p className="mt-1.5 text-xs text-solved">
-            Settled by {problem.solvedBy}
-            {problem.solvedYear ? `, ${problem.solvedYear}` : ''}
-          </p>
-        )}
-      </button>
-    </li>
-  );
-}
-

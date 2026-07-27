@@ -16,7 +16,9 @@ import { useMemo, useState } from 'react';
 import { History } from 'lucide-react';
 import type { Dataset, Problem } from '../types';
 import { fieldColor } from '../lib/fields';
-import { Chip, FieldChip, Note, Panel, SectionTitle, fmt } from '../components/ui';
+import { deriveCounts, hasSettledOutcome, settledByOf, settledYearOf } from '../lib/counts';
+import { href } from '../lib/router';
+import { Chip, FieldChip, Note, Panel, SectionTitle } from '../components/ui';
 import { RichText } from '../components/Tex';
 
 interface Props {
@@ -27,16 +29,18 @@ interface Props {
 
 export default function TimelineView({ dataset, dark, onOpen }: Props) {
   const [selectedYear, setSelectedYear] = useState<number | null>(null);
+  const counts = useMemo(() => deriveCounts(dataset.problems), [dataset.problems]);
 
+  // The same predicates the header and the about page use, so this page cannot
+  // drift from them again. It previously counted its own set and reported 111
+  // where the header said 105, with nothing on either surface explaining why.
   const solved = useMemo(
     () =>
-      dataset.problems
-        .filter((p) => p.status === 'solved' || p.variants?.some((v) => v.status === 'solved'))
-        .map((p) => {
-          const year = p.solvedYear ?? p.variants?.find((v) => v.solvedYear)?.solvedYear;
-          const by = p.solvedBy ?? p.variants?.find((v) => v.solvedBy)?.solvedBy;
-          return { problem: p, year, by };
-        }),
+      dataset.problems.filter(hasSettledOutcome).map((p) => ({
+        problem: p,
+        year: settledYearOf(p),
+        by: settledByOf(p),
+      })),
     [dataset.problems],
   );
 
@@ -70,9 +74,41 @@ export default function TimelineView({ dataset, dark, onOpen }: Props) {
           Problems that stopped being unsolved
         </h1>
         <p className="mt-2 text-sm leading-relaxed text-ink-dim">
-          {fmt.format(dated.length)} entries from the article's "Problems solved since 1995" section,
-          spanning {span}. The open list is long, and this is the part that shows it is not static.
+          The open list is long, and this is the part that shows it is not static. Spanning {span}.
         </p>
+
+        {/* The three figures that used to disagree across pages, stated together
+            so the difference between them is visible rather than confusing. */}
+        <dl className="mt-4 flex flex-wrap gap-x-6 gap-y-2 text-sm">
+          <div>
+            <dt className="text-[11px] tracking-wide text-ink-dim uppercase">Settled</dt>
+            <dd className="font-mono text-lg text-solved">{counts.settled}</dd>
+          </div>
+          <div>
+            <dt className="text-[11px] tracking-wide text-ink-dim uppercase">Partly settled</dt>
+            <dd className="font-mono text-lg text-partial">{counts.partlySettled}</dd>
+          </div>
+          <div>
+            <dt className="text-[11px] tracking-wide text-ink-dim uppercase">Shown below</dt>
+            <dd className="font-mono text-lg text-ink-strong">{counts.timeline.entries}</dd>
+          </div>
+          <div>
+            <dt className="text-[11px] tracking-wide text-ink-dim uppercase">With a year</dt>
+            <dd className="font-mono text-lg text-ink-strong">{counts.timeline.dated}</dd>
+          </div>
+        </dl>
+
+        <Note>
+          This page shows {counts.timeline.entries} entries where the header says {counts.settled}{' '}
+          settled, and the bars below plot {counts.timeline.dated}. The difference is not a
+          discrepancy: {counts.settled} problems are recorded as settled outright,{' '}
+          {counts.partlySettled} more are{' '}
+          <a className="text-accent hover:underline" href={href({ name: 'collection', slug: 'listed-twice' })}>
+            listed as both open and settled
+          </a>{' '}
+          and appear here too, and {counts.timeline.undated} of the total carry no parsable year so
+          they sit at the bottom of the page rather than on the axis.
+        </Note>
       </header>
 
       <Panel className="p-4 sm:p-5">

@@ -18,16 +18,28 @@ Static site. No backend, no accounts, no telemetry. Your notes stay in your brow
 | Listed as both open and settled | 8, kept as explicit variants |
 | Millennium Prize Problems | 7 |
 | With citations carried over | 240 |
+| With the article's own introduction | 549 |
 | Fields | 14 |
 | Source revision | `1366281547`, retrieved 2026-07-27 |
 
-The dataset is **generated, not typed**. `scripts/build-dataset.mjs` fetches the article's wikitext
-from the MediaWiki API and parses it into `src/data/problems.generated.json`. Re-run it and the
-atlas picks up whatever the article now says.
+Those first three numbers are the ones that used to disagree across pages. `src/lib/counts.ts` now
+derives every displayed figure from the dataset with named, distinct quantities — `settled` (105) is
+not `timeline.entries` (113) is not `timeline.dated` (111) — and a test asserts the identities hold.
+The Solved page shows all four side by side and explains the difference rather than picking one.
+
+The dataset is **generated, not typed**. Two scripts, both idempotent:
 
 ```bash
 npm run data
 ```
+
+```bash
+npm run extracts
+```
+
+The first parses the article's wikitext into `src/data/problems.generated.json`. The second fetches
+each problem's own article introduction into `src/data/extracts.generated.json`, which the detail
+view loads through a dynamic import so browsing 591 rows never pays for it.
 
 ## Quick start
 
@@ -43,10 +55,21 @@ npm run build && npm run preview
 npm test
 ```
 
-## The five things it does
+## What it does
 
-**Browse and search.** Ranked full-text search across titles, statements, fields and solvers.
-Filters for field, status, Millennium, sub-cases and your own tracking state, all combining.
+**Arrive somewhere useful.** The landing page is an area-exact treemap of all 14 fields, a featured
+problem chosen by calendar date, and five collections defined by rules over the dataset rather than
+hand-kept lists — so none of them can quietly go stale. Below 24px-per-cell the treemap declines to
+render and proportional bars take over; see `usableTreemap`.
+
+**Browse, search, sort, share.** Ranked full-text search across titles, statements, fields and
+solvers. Filters for field, status, Millennium, sub-cases and your own tracking, plus five sort
+orders. All of it lives in the URL, so `#/atlas?q=prime&sort=settled-new` is a link you can send.
+
+**Read something.** Each detail page carries the source list's statement, the lead section of the
+problem's own Wikipedia article, the parsed citations, and related problems derived from real
+relationships — direct links between statements, shared solvers, shared topics, sub-case structure —
+each shown with the reason it was suggested.
 
 **Track your own work.** Five honest states — curious, reading, working on it, stuck, parked — plus a
 self-assessed difficulty and hand-logged time. Per problem, in this browser.
@@ -57,14 +80,20 @@ note kept and restorable.
 **Encrypt it.** AES-256-GCM with a key derived by PBKDF2-SHA256 at 600,000 iterations, in the page.
 The passphrase is never stored and never transmitted.
 
-**Run the mathematics.** Collatz orbits, a real sieve of Eratosthenes, Goldbach decompositions, and
-the Riemann–Siegel Z function with its zeros located by bisection — all computed live, all covered by
-tests.
+**Run the mathematics.** Four live tools, every input encoded in the URL so a computation is
+shareable: Collatz orbits, a real sieve of Eratosthenes with Goldbach decompositions, the
+Riemann–Siegel Z function with its zeros located by bisection, and **Robin's inequality** — which is
+*equivalent* to the Riemann Hypothesis, so the Lab puts the same problem in front of you twice, once
+analytically and once with nothing but divisor sums. All covered by tests.
 
 ## What it does not do
 
 Written down rather than implied, and repeated in the app's own About page:
 
+- **No prize or difficulty ratings.** Not an omission — the source carries neither. A search across
+  all 591 entries for prizes, bounties and dollar amounts returns nothing beyond the Millennium
+  flag, which *is* shown. And nothing can rate the difficulty of a problem nobody has solved; the
+  only difficulty figure in the app is the one you set yourself, labelled as such.
 - **No cloud sync.** Export a JSON backup and import it elsewhere; it merges by most-recent-edit.
   There is no server to sync with.
 - **No scheduled backups.** Export is manual. A schedule that only runs while a browser tab happens
@@ -81,11 +110,15 @@ Written down rather than implied, and repeated in the app's own About page:
 
 ## Correctness
 
-`npm test` runs 71 tests. The ones that matter:
+`npm test` runs 146 tests. The ones that matter:
 
 - **Zeta** — the first ten nontrivial zeros are located to 8 decimal places and checked against
   published values; `ζ(2)`, `ζ(4)`, `ζ(6)` and `ζ(1/2)` against their closed forms; the count of
   zeros found against the Riemann–von Mangoldt formula.
+- **Robin** — reproduces the published 27 exceptions (OEIS A067698) *exactly*, finds none above
+  5040 across the scanned range, and cross-checks the inequality form against the ratio form for
+  every n up to 20,000. That cross-check exists because testing `ratio ≥ e^γ` instead of the
+  inequality silently misses n = 2, where `ln ln n` is negative and dividing flips the comparison.
 - **Primes** — `π(x)` against published values through 10⁶; Carmichael numbers correctly rejected;
   Goldbach verified for *every* even number in [4, 100000]; first-occurrence maximal prime gaps
   against OEIS A002386.
@@ -93,29 +126,40 @@ Written down rather than implied, and repeated in the app's own About page:
   every start below 5000 terminates; truncation and inexactness are flagged, not hidden.
 - **Crypto** — round-trip, wrong-passphrase rejection, tampered-ciphertext rejection (GCM is
   authenticated), unique salt and IV per encryption.
-- **Dataset** — no leftover wiki markup, balanced `$` delimiters, valid parent links, all seven
-  Millennium problems present, and a guard asserting that no popularity, progress or consensus
-  metric exists anywhere in the data.
+- **Treemap** — areas exactly proportional to values, exact tiling, and the property that
+  `usableTreemap` never returns a layout containing an untappable cell at *any* width against
+  *either* distribution. Two hand-tuned width breakpoints were tried first and both were wrong.
+- **Counts** — the identities that make the header, the Solved page and the About page agree.
+- **Dataset and extracts** — no leftover wiki markup, balanced `$` delimiters, valid parent links,
+  all seven Millennium problems present, no entry titled after the person who settled it, and a
+  guard asserting that no popularity, progress or consensus metric exists anywhere in the data.
 
 That last one is deliberate. See `src/data/dataset.test.ts`.
 
 ## Architecture
 
 ```
-scripts/build-dataset.mjs   Wikipedia wikitext -> problems.generated.json
-src/lib/math/              zeta, primes, collatz. Pure, tested, no React.
-src/lib/crypto.ts          WebCrypto vault
-src/lib/storage.ts         observable over localStorage, via useSyncExternalStore
-src/lib/router.ts          ~60-line hash router
-src/views/                 one file per route
+scripts/build-dataset.mjs    Wikipedia wikitext -> problems.generated.json
+scripts/build-extracts.mjs   article introductions -> extracts.generated.json
+scripts/inject-precache.mjs  writes hashed asset names into the service worker
+src/lib/math/                zeta, primes, collatz, robin. Pure, tested, no React.
+src/lib/counts.ts            one source of truth for every displayed figure
+src/lib/treemap.ts           squarified layout + the usability check
+src/lib/related.ts           relatedness scoring, with reasons
+src/lib/collections.ts       curated collections as predicates; problem of the day
+src/lib/crypto.ts            WebCrypto vault
+src/lib/storage.ts           observable over localStorage, via useSyncExternalStore
+src/lib/router.ts            hash router with query state
+src/views/                   one file per route
 ```
 
-Deliberate omissions: no router library (hash routing for a static host is 60 lines), no charting
-library (one chart shape, hand-rolled SVG), no state management library (one store, one
+Deliberate omissions: no router library (hash routing with query state for a static host is ~150
+lines), no charting library (SVG and CSS, hand-rolled), no state management library (one store, one
 `useSyncExternalStore`), no PDF library (the browser prints).
 
-Build output splits into four chunks by cache lifetime — app code (30 KB gz), dataset (52 KB gz),
-KaTeX (77 KB gz), vendor (102 KB gz) — so a code change does not invalidate the 288 KB dataset.
+Build output splits into five chunks by cache lifetime — app code (32 KB gz), dataset (53 KB gz),
+KaTeX (77 KB gz), vendor (103 KB gz), and article extracts (155 KB gz, dynamically imported so the
+atlas never loads it) — so a code change invalidates none of the data.
 
 ## Deploying
 

@@ -13,6 +13,7 @@
 
 import { Check, CircleSlash, Minus } from 'lucide-react';
 import type { Dataset } from '../types';
+import { deriveCounts } from '../lib/counts';
 import { ExternalLink, Note, Panel, SectionTitle, Stat, fmt } from '../components/ui';
 
 type Level = 'built' | 'partial' | 'not-built';
@@ -31,9 +32,28 @@ const CAPABILITIES: Capability[] = [
       'Every entry is generated from the source article by a script in this repository. Re-running it picks up edits to the article, so the count above is whatever the article currently lists.',
   },
   {
-    name: 'Search and filter',
+    name: 'Search, filter and sort',
     level: 'built',
-    detail: 'Full-text ranked search across titles, statements, fields and solvers, with filters that combine.',
+    detail:
+      'Ranked search across titles, statements, fields and solvers, with filters and five sort orders that combine. All of it lives in the URL, so any view you build is a link you can send.',
+  },
+  {
+    name: 'Article introductions',
+    level: 'built',
+    detail:
+      'The lead section of each problem’s own Wikipedia article, fetched at build time and loaded on demand. 549 of 591 problems have one; where a link points at a section of a broader article, the page says so rather than implying the text is about that problem alone.',
+  },
+  {
+    name: 'Related problems',
+    level: 'built',
+    detail:
+      'Derived from relationships the dataset records — direct links between statements, shared solvers, shared topics, sub-case structure — and each suggestion shows the reason it was made. No similarity model, nothing to take on trust.',
+  },
+  {
+    name: 'Field overview and curated ways in',
+    level: 'built',
+    detail:
+      'An area-exact treemap of the whole collection, five collections defined by rules over the dataset rather than hand-kept lists, and a featured problem chosen by calendar date.',
   },
   {
     name: 'Personal progress tracking',
@@ -66,7 +86,13 @@ const CAPABILITIES: Capability[] = [
     name: 'Interactive computation',
     level: 'built',
     detail:
-      'Collatz orbits, a prime sieve, Goldbach decompositions and the Riemann–Siegel Z function, all computed live and covered by tests.',
+      'Collatz orbits, a prime sieve, Goldbach decompositions, the Riemann–Siegel Z function, and Robin’s inequality — which is equivalent to the Riemann Hypothesis, so it puts the same problem in front of you twice from completely different directions. All computed live, all covered by tests, all deep-linkable.',
+  },
+  {
+    name: 'Prize and difficulty ratings',
+    level: 'not-built',
+    detail:
+      'Not shown, because the source carries neither. A search across all 591 entries for prizes, bounties and dollar amounts returns nothing beyond the Millennium flag, which is shown. And nothing can rate the difficulty of a problem nobody has solved — the only difficulty figure in this app is the one you set yourself, labelled as such.',
   },
   {
     name: 'Dark and light themes',
@@ -127,6 +153,9 @@ export default function AboutView({ dataset }: { dataset: Dataset }) {
     (acc, c) => ({ ...acc, [c.level]: (acc[c.level] ?? 0) + 1 }),
     {} as Record<Level, number>,
   );
+  // Same derivation the header and the timeline use, so this page cannot
+  // disagree with them about how many problems there are.
+  const data = deriveCounts(dataset.problems);
 
   return (
     <div className="space-y-6">
@@ -142,10 +171,24 @@ export default function AboutView({ dataset }: { dataset: Dataset }) {
       </header>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat label="Problems" value={fmt.format(dataset.meta.counts.total)} source="parsed from the source article" tone="accent" />
-        <Stat label="With citations" value={fmt.format(dataset.meta.counts.withReferences)} source="references carried over from the article" />
+        <Stat
+          label="Problems"
+          value={fmt.format(data.total)}
+          source={`${fmt.format(data.open)} open, ${data.settled} settled, ${data.partlySettled} listed as both`}
+          tone="accent"
+        />
+        <Stat
+          label="With citations"
+          value={fmt.format(data.withReferences)}
+          source="references carried over from the source article"
+        />
         <Stat label="Built" value={String(counts.built ?? 0)} source="capabilities you can verify below" tone="solved" />
-        <Stat label="Not built" value={String((counts.partial ?? 0) + (counts['not-built'] ?? 0))} source="listed with the reason, not hidden" tone="open" />
+        <Stat
+          label="Not built"
+          value={String((counts.partial ?? 0) + (counts['not-built'] ?? 0))}
+          source="listed with the reason, not hidden"
+          tone="open"
+        />
       </div>
 
       <Panel className="p-4 sm:p-5">

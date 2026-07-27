@@ -13,7 +13,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "data": "node scripts/build-dataset.mjs",
-    "data:verify": "node scripts/verify-dataset.mjs"
+    "extracts": "node scripts/build-extracts.mjs",
+    "data:all": "node scripts/build-dataset.mjs && node scripts/build-extracts.mjs"
   },
   "dependencies": {
     "katex": "^0.16.11",

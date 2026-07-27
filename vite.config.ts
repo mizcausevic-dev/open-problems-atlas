@@ -10,6 +10,10 @@ export default defineConfig({
   server: { port: 5199, strictPort: true },
   build: {
     target: 'es2022',
+    // The extracts chunk is ~500 KB and trips the default 500 KB warning. It is
+    // already split off and dynamically imported, which is exactly what the
+    // warning asks for, so the warning has nothing left to tell us.
+    chunkSizeWarningLimit: 600,
     rollupOptions: {
       output: {
         /**

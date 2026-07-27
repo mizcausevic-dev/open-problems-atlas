@@ -1,22 +1,27 @@
 /**
- * The lab: three problems you can actually run.
+ * The lab: four problems you can actually run.
  *
  * The rule for everything on this page is that the picture is computed from the
  * definition, in the browser, at the moment you look at it. No precomputed
  * arrays, no illustrative approximations standing in for the real object. Where
  * a computation has a limit, the limit is displayed.
  *
- * This is the direct answer to the most common failure in "interactive maths"
- * builds: a plot that is decorative rather than derived, captioned as though it
- * were derived. See the header comment in lib/math/zeta.ts for the specific
- * case that motivated it.
+ * Every input is mirrored into the URL, so a specific computation — this
+ * starting value, this scan limit — is a link. That is the whole point of a lab
+ * page: findings are worth sending to someone.
  */
 
-import { useDeferredValue, useMemo, useState } from 'react';
-import { Activity, Binary, Sigma } from 'lucide-react';
+import { useDeferredValue, useEffect, useMemo, useState } from 'react';
+import { Activity, Binary, Link2, Check, Sigma, SquareDivide } from 'lucide-react';
 import { orbit, stoppingTimes, VERIFIED_UP_TO } from '../lib/math/collatz';
-import { goldbachComet, goldbachPartitions, logarithmicIntegral, primePi, sieve, twinPrimes } from '../lib/math/primes';
+import {
+  goldbachComet, goldbachPartitions, logarithmicIntegral, primePi, sieve, twinPrimes,
+} from '../lib/math/primes';
 import { expectedZeroCount, findZeros, zFunction } from '../lib/math/zeta';
+import {
+  divisorSumSieve, exceedsRobin, robinExceptions, robinRatio, robinSeries,
+  E_GAMMA, KNOWN_EXCEPTIONS, NEAR_MISSES, ROBIN_BOUND, ROBIN_SOURCE,
+} from '../lib/math/robin';
 import { href } from '../lib/router';
 import { Button, ExternalLink, Note, Panel, SectionTitle, Stat, fmt } from '../components/ui';
 import { Tex } from '../components/Tex';
@@ -25,11 +30,77 @@ const TOOLS = [
   { id: 'collatz', label: 'Collatz orbits', icon: Binary },
   { id: 'primes', label: 'Goldbach & primes', icon: Sigma },
   { id: 'zeta', label: 'Zeta on the critical line', icon: Activity },
+  { id: 'robin', label: "Robin's inequality", icon: SquareDivide },
 ] as const;
 
 type ToolId = (typeof TOOLS)[number]['id'];
 
-export default function LabView({ tool }: { tool?: string }) {
+interface Props {
+  tool?: string;
+  query: URLSearchParams;
+  setQuery: (params: Record<string, string | undefined>) => void;
+}
+
+/**
+ * A number that lives in the URL.
+ *
+ * Held in local state for immediate feedback while dragging, then written to
+ * the address bar on a short delay. Writing every intermediate slider value
+ * straight through the router would re-render the whole view per pixel of drag.
+ */
+function useUrlNumber(
+  query: URLSearchParams,
+  setQuery: (p: Record<string, string | undefined>) => void,
+  key: string,
+  fallback: number,
+  clamp: (n: number) => number,
+): [number, (n: number) => void] {
+  const fromUrl = query.get(key);
+  const parsed = fromUrl === null ? Number.NaN : Number(fromUrl);
+  const initial = Number.isFinite(parsed) ? clamp(parsed) : fallback;
+
+  const [value, setValue] = useState(initial);
+
+  // Re-sync when the URL changes underneath us: back/forward, or a pasted link.
+  useEffect(() => {
+    if (Number.isFinite(parsed) && clamp(parsed) !== value) setValue(clamp(parsed));
+    if (fromUrl === null && value !== fallback) setValue(fallback);
+  }, [fromUrl]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    const id = setTimeout(() => {
+      setQuery({ ...Object.fromEntries(query), [key]: value === fallback ? undefined : String(value) });
+    }, 200);
+    return () => clearTimeout(id);
+  }, [value]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return [value, setValue];
+}
+
+/** Copies the current URL, so a specific computation can be handed to someone. */
+function ShareLink() {
+  const [copied, setCopied] = useState(false);
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Clipboard access can be denied; the URL is in the address bar anyway.
+      setCopied(false);
+    }
+  };
+
+  return (
+    <Button size="sm" onClick={copy} title="Copy a link that reproduces exactly this computation">
+      {copied ? <Check className="size-3.5 text-solved" aria-hidden /> : <Link2 className="size-3.5" aria-hidden />}
+      <span aria-live="polite">{copied ? 'Copied' : 'Copy link'}</span>
+    </Button>
+  );
+}
+
+export default function LabView({ tool, query, setQuery }: Props) {
   const active: ToolId = TOOLS.some((t) => t.id === tool) ? (tool as ToolId) : 'collatz';
 
   return (
@@ -39,9 +110,9 @@ export default function LabView({ tool }: { tool?: string }) {
           Run the mathematics yourself
         </h1>
         <p className="mt-2 text-sm leading-relaxed text-ink-dim">
-          Three open problems you can compute against directly. Everything below is calculated in
-          this page from the definition, at the resolution you choose. Nothing is a stock image of a
-          result.
+          Four open problems you can compute against directly. Everything below is calculated in this
+          page from the definition, at the resolution you choose. Every input is in the address bar,
+          so a particular computation is a link you can send.
         </p>
       </header>
 
@@ -54,7 +125,7 @@ export default function LabView({ tool }: { tool?: string }) {
             className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors ${
               active === id
                 ? 'border-accent bg-accent-soft font-semibold text-accent-ink'
-                : 'border-line bg-panel text-ink-dim hover:text-ink-strong'
+                : 'border-line bg-panel text-ink-dim hover:border-accent/40 hover:text-ink-strong'
             }`}
           >
             <Icon className="size-4" aria-hidden />
@@ -63,9 +134,10 @@ export default function LabView({ tool }: { tool?: string }) {
         ))}
       </nav>
 
-      {active === 'collatz' && <CollatzLab />}
-      {active === 'primes' && <PrimesLab />}
-      {active === 'zeta' && <ZetaLab />}
+      {active === 'collatz' && <CollatzLab query={query} setQuery={setQuery} />}
+      {active === 'primes' && <PrimesLab query={query} setQuery={setQuery} />}
+      {active === 'zeta' && <ZetaLab query={query} setQuery={setQuery} />}
+      {active === 'robin' && <RobinLab query={query} setQuery={setQuery} />}
     </div>
   );
 }
@@ -74,14 +146,18 @@ export default function LabView({ tool }: { tool?: string }) {
 // Collatz
 // ---------------------------------------------------------------------------
 
-function CollatzLab() {
-  const [input, setInput] = useState('27');
-  const [sweepTo, setSweepTo] = useState(2000);
+function CollatzLab({ query, setQuery }: { query: URLSearchParams; setQuery: Props['setQuery'] }) {
+  const [n, setN] = useUrlNumber(query, setQuery, 'n', 27, (v) =>
+    Math.max(1, Math.min(2 ** 40, Math.floor(v))),
+  );
+  const [sweepTo, setSweepTo] = useUrlNumber(query, setQuery, 'sweep', 2000, (v) =>
+    Math.max(500, Math.min(20000, Math.round(v / 500) * 500)),
+  );
   const [logScale, setLogScale] = useState(true);
 
-  const n = Math.max(1, Math.min(2 ** 40, Math.floor(Number(input) || 1)));
   const o = useMemo(() => orbit(n), [n]);
-  const sweep = useMemo(() => stoppingTimes(1, sweepTo), [sweepTo]);
+  const deferredSweep = useDeferredValue(sweepTo);
+  const sweep = useMemo(() => stoppingTimes(1, deferredSweep), [deferredSweep]);
 
   const w = 800;
   const h = 260;
@@ -93,13 +169,15 @@ function CollatzLab() {
   const path = o.path
     .map((v, i) => `${i === 0 ? 'M' : 'L'}${((i / (o.path.length - 1 || 1)) * w).toFixed(1)},${yOf(v).toFixed(1)}`)
     .join(' ');
-
   const maxSteps = Math.max(...sweep.map((s) => s.steps));
 
   return (
     <div className="space-y-5">
       <Panel className="p-4 sm:p-5">
-        <SectionTitle hint="Halve if even, otherwise triple and add one. Does every start reach 1?">
+        <SectionTitle
+          hint="Halve if even, otherwise triple and add one. Does every start reach 1?"
+          right={<ShareLink />}
+        >
           Collatz conjecture
         </SectionTitle>
 
@@ -116,15 +194,16 @@ function CollatzLab() {
             <input
               id="collatz-n"
               type="number"
+              inputMode="numeric"
               min={1}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
+              value={n}
+              onChange={(e) => setN(Math.max(1, Math.floor(Number(e.target.value) || 1)))}
               className="w-40 rounded-lg border border-line bg-panel-2 px-3 py-2 font-mono text-sm text-ink-strong focus:border-accent focus:outline-none"
             />
           </div>
           <div className="flex flex-wrap gap-1.5">
             {[27, 97, 871, 6171, 77031, 837799].map((v) => (
-              <Button key={v} size="sm" onClick={() => setInput(String(v))}>
+              <Button key={v} size="sm" onClick={() => setN(v)} pressed={n === v}>
                 {fmt.format(v)}
               </Button>
             ))}
@@ -201,12 +280,12 @@ function CollatzLab() {
             viewBox={`0 0 ${w} 200`}
             className="h-auto w-full rounded-lg border border-line bg-panel-2"
             role="img"
-            aria-label={`Scatter of total stopping time against starting value, for every start from 1 to ${sweepTo}. Longest is ${maxSteps} steps.`}
+            aria-label={`Scatter of total stopping time against starting value, for every start from 1 to ${deferredSweep}. Longest is ${maxSteps} steps.`}
           >
             {sweep.map(({ n: start, steps }) => (
               <circle
                 key={start}
-                cx={(start / sweepTo) * w}
+                cx={(start / deferredSweep) * w}
                 cy={200 - (steps / maxSteps) * 190 - 5}
                 r="0.8"
                 fill="var(--c-accent)"
@@ -221,8 +300,8 @@ function CollatzLab() {
         </figure>
 
         <Note>
-          Your browser has verified {fmt.format(sweepTo)} starting values. Exhaustive computation has
-          reached {VERIFIED_UP_TO.label} ({VERIFIED_UP_TO.by}, {VERIFIED_UP_TO.year}
+          Your browser has verified {fmt.format(deferredSweep)} starting values. Exhaustive
+          computation has reached {VERIFIED_UP_TO.label} ({VERIFIED_UP_TO.by}, {VERIFIED_UP_TO.year}
           {'), '}
           <ExternalLink href={VERIFIED_UP_TO.url}>published here</ExternalLink>. Neither is a proof:
           the conjecture is a claim about every positive integer, and no finite check can settle it.
@@ -236,18 +315,20 @@ function CollatzLab() {
 // Primes
 // ---------------------------------------------------------------------------
 
-function PrimesLab() {
-  const [cometTo, setCometTo] = useState(4000);
-  const [target, setTarget] = useState('100');
-  const deferredComet = useDeferredValue(cometTo);
+function PrimesLab({ query, setQuery }: { query: URLSearchParams; setQuery: Props['setQuery'] }) {
+  const [cometTo, setCometTo] = useUrlNumber(query, setQuery, 'comet', 4000, (v) =>
+    Math.max(1000, Math.min(30000, Math.round(v / 500) * 500)),
+  );
+  const [target, setTarget] = useUrlNumber(query, setQuery, 'n', 100, (v) =>
+    Math.max(4, Math.min(1_000_000, Math.floor(v))),
+  );
 
+  const deferredComet = useDeferredValue(cometTo);
   const s = useMemo(() => sieve(1_000_000), []);
   const comet = useMemo(() => goldbachComet(4, deferredComet, s), [deferredComet, s]);
 
-  const n = Math.max(4, Math.min(1_000_000, Math.floor(Number(target) || 4)));
-  const even = n % 2 === 0 ? n : n + 1;
+  const even = target % 2 === 0 ? target : target + 1;
   const partitions = useMemo(() => goldbachPartitions(even, s), [even, s]);
-
   const twins = useMemo(() => twinPrimes(100_000, s), [s]);
   const maxCount = Math.max(...comet.map((c) => c.count), 1);
 
@@ -260,7 +341,10 @@ function PrimesLab() {
   return (
     <div className="space-y-5">
       <Panel className="p-4 sm:p-5">
-        <SectionTitle hint="Every even number above 2 is a sum of two primes. Unproven since 1742.">
+        <SectionTitle
+          hint="Every even number above 2 is a sum of two primes. Unproven since 1742."
+          right={<ShareLink />}
+        >
           Goldbach's conjecture
         </SectionTitle>
 
@@ -301,8 +385,8 @@ function PrimesLab() {
           </svg>
           <figcaption className="mt-1.5 text-xs text-ink-dim">
             The Goldbach comet. Each dot is one even number; height is how many prime pairs sum to
-            it. {fmt.format(comet.length)} even numbers checked, {comet.filter((c) => c.count === 0).length}{' '}
-            failures found.
+            it. {fmt.format(comet.length)} even numbers checked,{' '}
+            {comet.filter((c) => c.count === 0).length} failures found.
           </figcaption>
         </figure>
 
@@ -314,13 +398,14 @@ function PrimesLab() {
             <input
               id="goldbach-n"
               type="number"
+              inputMode="numeric"
               min={4}
               max={1_000_000}
               value={target}
-              onChange={(e) => setTarget(e.target.value)}
+              onChange={(e) => setTarget(Math.max(4, Math.floor(Number(e.target.value) || 4)))}
               className="w-40 rounded-lg border border-line bg-panel-2 px-3 py-2 font-mono text-sm text-ink-strong focus:border-accent focus:outline-none"
             />
-            {even !== n && <span className="text-xs text-ink-dim">rounded up to {even}, an even number</span>}
+            {even !== target && <span className="text-xs text-ink-dim">rounded up to {even}, an even number</span>}
           </div>
 
           <p className="mt-2 text-sm text-ink">
@@ -398,14 +483,15 @@ function PrimesLab() {
 // Zeta
 // ---------------------------------------------------------------------------
 
-/** The first ten zeros, to compare the computed values against. */
 const PUBLISHED_ZEROS = [
-  14.134725, 21.022040, 25.010858, 30.424876, 32.935062,
-  37.586178, 40.918719, 43.327073, 48.005151, 49.773832,
+  14.134725, 21.02204, 25.010858, 30.424876, 32.935062, 37.586178, 40.918719, 43.327073, 48.005151,
+  49.773832,
 ];
 
-function ZetaLab() {
-  const [tMax, setTMax] = useState(50);
+function ZetaLab({ query, setQuery }: { query: URLSearchParams; setQuery: Props['setQuery'] }) {
+  const [tMax, setTMax] = useUrlNumber(query, setQuery, 't', 50, (v) =>
+    Math.max(20, Math.min(200, Math.round(v / 5) * 5)),
+  );
   const deferredMax = useDeferredValue(tMax);
 
   const { samples, zeros } = useMemo(() => {
@@ -433,7 +519,10 @@ function ZetaLab() {
   return (
     <div className="space-y-5">
       <Panel className="p-4 sm:p-5">
-        <SectionTitle hint="Every nontrivial zero has real part one half. Open since 1859.">
+        <SectionTitle
+          hint="Every nontrivial zero has real part one half. Open since 1859."
+          right={<ShareLink />}
+        >
           Riemann hypothesis
         </SectionTitle>
 
@@ -524,7 +613,11 @@ function ZetaLab() {
                   <tr key={i} className="border-b border-line-soft">
                     <td className="py-1.5 pr-4 text-ink-dim">{i + 1}</td>
                     <td className="py-1.5 pr-4 text-ink-strong">
-                      {computed === undefined ? <span className="text-ink-dim">raise the height</span> : computed.toFixed(6)}
+                      {computed === undefined ? (
+                        <span className="text-ink-dim">raise the height</span>
+                      ) : (
+                        computed.toFixed(6)
+                      )}
                     </td>
                     <td className="py-1.5 pr-4 text-ink-dim">{published.toFixed(6)}</td>
                     <td className="py-1.5 text-ink-dim">
@@ -543,6 +636,229 @@ function ZetaLab() {
           claim is about all of them.
         </Note>
       </Panel>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Robin
+// ---------------------------------------------------------------------------
+
+function RobinLab({ query, setQuery }: { query: URLSearchParams; setQuery: Props['setQuery'] }) {
+  const [limit, setLimit] = useUrlNumber(query, setQuery, 'limit', 100_000, (v) =>
+    Math.max(10_000, Math.min(500_000, Math.round(v / 10_000) * 10_000)),
+  );
+  const deferredLimit = useDeferredValue(limit);
+
+  const sigma = useMemo(() => divisorSumSieve(deferredLimit), [deferredLimit]);
+  const series = useMemo(() => robinSeries(2, deferredLimit, sigma, 1100), [sigma, deferredLimit]);
+  const exceptions = useMemo(() => robinExceptions(deferredLimit, sigma), [sigma, deferredLimit]);
+  const above = exceptions.filter((n) => n > ROBIN_BOUND);
+
+  const w = 900;
+  const h = 260;
+  // Clipped at 2.4 so the n=2 outlier does not flatten everything else; the
+  // caption says so rather than letting the axis quietly mislead.
+  const yMin = 1.4;
+  const yMax = 2.4;
+  const yOf = (r: number) => h - ((Math.min(Math.max(r, yMin), yMax) - yMin) / (yMax - yMin)) * (h - 16) - 8;
+  const xOf = (n: number) => (Math.log(n) / Math.log(deferredLimit)) * w;
+
+  return (
+    <div className="space-y-5">
+      <Panel className="p-4 sm:p-5">
+        <SectionTitle
+          hint="Equivalent to the Riemann hypothesis, using nothing but divisor sums"
+          right={<ShareLink />}
+        >
+          Robin's inequality
+        </SectionTitle>
+
+        <p className="text-sm leading-relaxed text-ink">
+          Robin proved in 1984 that the Riemann hypothesis is <em>equivalent</em> to the statement
+          that
+        </p>
+        <Tex block math={String.raw`\sigma(n) < e^{\gamma}\, n \ln \ln n \qquad \text{for every } n > 5040`} />
+        <p className="text-sm leading-relaxed text-ink">
+          where <Tex math={String.raw`\sigma(n)`} /> is the sum of the divisors of{' '}
+          <Tex math="n" /> and <Tex math={String.raw`e^{\gamma} \approx 1.781072`} />. Not evidence
+          for, not implied by: equivalent. A single <Tex math="n" /> above 5040 that fails this
+          would disprove the Riemann hypothesis outright, with nothing but arithmetic.
+        </p>
+
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <label htmlFor="robin-limit" className="text-xs text-ink-dim">
+            Check every integer up to
+          </label>
+          <input
+            id="robin-limit"
+            type="range"
+            min={10_000}
+            max={500_000}
+            step={10_000}
+            value={limit}
+            onChange={(e) => setLimit(Number(e.target.value))}
+            className="flex-1 accent-[var(--c-accent)]"
+          />
+          <span className="font-mono text-sm text-ink-strong">{fmt.format(limit)}</span>
+        </div>
+
+        <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <Stat
+            label="Integers checked"
+            value={fmt.format(deferredLimit)}
+            source="every one, not a sample"
+            tone="accent"
+          />
+          <Stat
+            label="Exceptions found"
+            value={String(exceptions.length)}
+            source={`all at or below ${fmt.format(ROBIN_BOUND)}`}
+          />
+          <Stat
+            label="Above 5040"
+            value={String(above.length)}
+            source={above.length === 0 ? 'as Robin’s theorem requires' : 'this would be enormous news'}
+            tone={above.length === 0 ? 'solved' : 'open'}
+          />
+          <Stat
+            label="Ratio at 5040"
+            value={robinRatio(5040, sigma).toFixed(5)}
+            source={`just above e^γ = ${E_GAMMA.toFixed(5)}`}
+            tone="open"
+          />
+        </div>
+
+        <figure className="mt-4">
+          <svg
+            viewBox={`0 0 ${w} ${h}`}
+            className="h-auto w-full rounded-lg border border-line bg-panel-2"
+            role="img"
+            aria-label={`Ratio of sigma(n) to n times log log n, for n from 2 to ${deferredLimit}, against the constant e to the gamma. ${above.length} values above 5040 exceed it.`}
+          >
+            {/* The e^gamma line: the whole question is whether anything crosses it. */}
+            <line
+              x1="0"
+              y1={yOf(E_GAMMA)}
+              x2={w}
+              y2={yOf(E_GAMMA)}
+              stroke="var(--c-open)"
+              strokeWidth="1.5"
+              strokeDasharray="5 4"
+            />
+            <text x="6" y={yOf(E_GAMMA) - 6} className="fill-[var(--c-open)]" style={{ font: '600 11px var(--font-mono)' }}>
+              e^γ = {E_GAMMA.toFixed(6)}
+            </text>
+            {/* n = 5040 marker. */}
+            {deferredLimit > ROBIN_BOUND && (
+              <line
+                x1={xOf(ROBIN_BOUND)}
+                y1="0"
+                x2={xOf(ROBIN_BOUND)}
+                y2={h}
+                stroke="var(--c-line)"
+                strokeWidth="1"
+              />
+            )}
+            {series.map((p) => (
+              <circle
+                key={p.n}
+                cx={xOf(p.n)}
+                cy={yOf(p.ratio)}
+                r={p.exceeds ? 2 : 0.9}
+                fill={p.exceeds ? 'var(--c-open)' : 'var(--c-accent)'}
+                opacity={p.exceeds ? 1 : 0.5}
+              />
+            ))}
+          </svg>
+          <figcaption className="mt-1.5 text-xs text-ink-dim">
+            Horizontal axis is logarithmic in <Tex math="n" />; the vertical grey line marks{' '}
+            {fmt.format(ROBIN_BOUND)}. The vertical axis is clipped to [{yMin}, {yMax}] so the
+            small-<Tex math="n" /> outliers do not flatten the rest — points outside sit on the edge.
+          </figcaption>
+        </figure>
+      </Panel>
+
+      <div className="grid gap-5 lg:grid-cols-2">
+        <Panel className="p-4 sm:p-5">
+          <SectionTitle hint="Computed here, checked against the published list">
+            The 27 exceptions
+          </SectionTitle>
+          <div className="flex flex-wrap gap-1.5">
+            {KNOWN_EXCEPTIONS.map((n) => (
+              <span
+                key={n}
+                className={`rounded-md border px-2 py-1 font-mono text-xs ${
+                  exceptions.includes(n)
+                    ? 'border-open/40 bg-open-soft text-open'
+                    : 'border-line bg-panel-2 text-ink-dim'
+                }`}
+                title={`sigma(${n}) / (${n} · ln ln ${n}) = ${robinRatio(n, sigma).toFixed(5)}`}
+              >
+                {fmt.format(n)}
+              </span>
+            ))}
+          </div>
+          <Note>
+            Every one of these is at or below {fmt.format(ROBIN_BOUND)}, and this page found exactly
+            them and nothing else. Published as{' '}
+            <ExternalLink href={ROBIN_SOURCE.oeisUrl}>OEIS {ROBIN_SOURCE.oeis}</ExternalLink>.
+          </Note>
+        </Panel>
+
+        <Panel className="p-4 sm:p-5">
+          <SectionTitle hint="Where the ratio comes closest to the line above 5040">
+            Near misses
+          </SectionTitle>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <caption className="sr-only">Robin ratio at superior highly composite numbers</caption>
+              <thead>
+                <tr className="border-b border-line text-left text-[11px] tracking-wide text-ink-dim uppercase">
+                  <th scope="col" className="py-2 pr-4 font-medium">n</th>
+                  <th scope="col" className="py-2 pr-4 font-medium">Ratio</th>
+                  <th scope="col" className="py-2 font-medium">Under e^γ</th>
+                </tr>
+              </thead>
+              <tbody className="font-mono">
+                {NEAR_MISSES.map((n) => {
+                  const inRange = n <= deferredLimit;
+                  return (
+                    <tr key={n} className="border-b border-line-soft">
+                      <td className="py-1.5 pr-4 text-ink-strong">{fmt.format(n)}</td>
+                      <td className="py-1.5 pr-4 text-ink-dim">
+                        {inRange ? robinRatio(n, sigma).toFixed(6) : <span className="text-ink-dim">raise the limit</span>}
+                      </td>
+                      <td className="py-1.5">
+                        {inRange ? (
+                          exceedsRobin(n, sigma) ? (
+                            <span className="text-open">no</span>
+                          ) : (
+                            <span className="text-solved">yes</span>
+                          )
+                        ) : (
+                          '—'
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <Note>
+            The ratio peaks at numbers with many divisors, so these are the only plausible places a
+            counterexample could hide. Checking a hundred thousand more integers is not progress
+            toward a proof: the claim is about every <Tex math="n" />, and no finite scan can settle
+            it. What it does show is where the question actually lives.
+          </Note>
+        </Panel>
+      </div>
+
+      <Note>
+        Source: {ROBIN_SOURCE.author}, {ROBIN_SOURCE.year}, <em>{ROBIN_SOURCE.title}</em>,{' '}
+        {ROBIN_SOURCE.journal}.
+      </Note>
     </div>
   );
 }

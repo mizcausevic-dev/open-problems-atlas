@@ -15,6 +15,10 @@
    --------------------------------------------------------------------------- */
 
 :root {
+  /* Tells the browser which native widget palette to use, so scrollbars,
+     form controls and the canvas behind the page match the theme. Without it
+     a dark page renders light scrollbars and light <input> internals. */
+  color-scheme: light;
   --c-bg: #f4f6f7;
   --c-bg-elev: #ffffff;
   --c-panel: #ffffff;
@@ -38,6 +42,7 @@
 }
 
 .dark {
+  color-scheme: dark;
   --c-bg: #0b0c10;
   --c-bg-elev: #101319;
   --c-panel: #161b23;
@@ -108,12 +113,30 @@ body {
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   overflow-x: hidden;
+  /* Removes the ~300ms double-tap-zoom delay on touch without disabling
+     pinch zoom, which user-scalable=no would (and which breaks accessibility). */
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: color-mix(in srgb, var(--c-accent) 18%, transparent);
 }
 
 h1, h2, h3, h4 {
   color: var(--c-ink-strong);
   letter-spacing: -0.015em;
   text-wrap: balance;
+  /* Anchored headings must not hide behind the sticky header. */
+  scroll-margin-top: 5rem;
+}
+
+p, li {
+  text-wrap: pretty;
+}
+
+/* Figures compare by column, so digits have to line up. Proportional numerals
+   make a table of ratios or zero locations impossible to scan. */
+.tabular,
+table,
+.font-mono {
+  font-variant-numeric: tabular-nums;
 }
 
 /* A visible, high-contrast focus ring on every interactive element. Browsers
@@ -153,6 +176,32 @@ h1, h2, h3, h4 {
 
 @utility hairline {
   border-color: var(--c-line);
+}
+
+/* Long lists: let the browser skip layout and paint for rows that are off
+   screen. The contain-intrinsic-size is a placeholder height so the scrollbar
+   does not jump as rows are realised. Cheaper than a virtualiser and it keeps
+   Ctrl+F working, which windowing breaks. */
+@utility list-row {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 120px;
+}
+
+/* Modal-ish surfaces must not scroll the page behind them. */
+@utility sheet {
+  overscroll-behavior: contain;
+}
+
+/* Full-bleed bars respect notches and home indicators. */
+@utility edge-safe {
+  padding-left: max(1rem, env(safe-area-inset-left));
+  padding-right: max(1rem, env(safe-area-inset-right));
+}
+
+/* The thin cyan rule used to head a section. Decorative, so aria-hidden. */
+@utility rule-accent {
+  background: linear-gradient(90deg, var(--c-accent), transparent);
+  height: 1px;
 }
 
 /* Thin scrollbars that do not fight the dark ground. */
