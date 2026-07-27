@@ -19,8 +19,23 @@
 const VERSION = 'opa-v1';
 const SHELL = `${VERSION}-shell`;
 
-/** Resolved relative to the worker's own scope so it works from any base path. */
-const PRECACHE = ['./', './index.html', './manifest.webmanifest', './icon.svg'];
+/**
+ * Resolved relative to the worker's own scope so it works from any base path.
+ *
+ * The marker below is replaced at build time by scripts/inject-precache.mjs
+ * with the hashed asset filenames Vite produced. Without that step the app
+ * boots offline only from the second visit, because the first visit's JS is
+ * fetched before this worker activates. In dev the marker is simply absent and
+ * the shell entries below are all that is precached, which is correct: Vite
+ * serves modules unbundled there and there is nothing stable to cache.
+ */
+const PRECACHE = [
+  './',
+  './index.html',
+  './manifest.webmanifest',
+  './icon.svg',
+  /* __PRECACHE_ASSETS__ */
+];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
