@@ -72,6 +72,22 @@ self.addEventListener('activate', (event) => {
   );
 });
 
+/**
+ * What to serve for a navigation the network could not satisfy in time.
+ *
+ * Order matters. This exact page first, so a glossary term that has been
+ * visited before comes back as itself; the app shell only as a last resort.
+ * Serving the shell for /glossary/<term>/ would boot the SPA, which parses an
+ * empty hash and renders the Overview — the visitor would land on the homepage
+ * at a glossary URL, with nothing reporting an error.
+ */
+function navigationFallback(request) {
+  return caches
+    .match(request)
+    .then((hit) => hit ?? caches.match('./index.html'))
+    .then((r) => r ?? null);
+}
+
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   if (request.method !== 'GET') return;
@@ -80,7 +96,7 @@ self.addEventListener('fetch', (event) => {
   if (url.origin !== self.location.origin) return; // Wikipedia, Wikimedia: never cached.
 
   // Navigations: try the network so a deploy is picked up promptly, fall back
-  // to the cached shell.
+  // to something cached.
   //
   // The timeout is the point. fetch() rejects on a hard network failure but not
   // on lie-fi — a captive portal, a dead tunnel, hotel wifi that accepts the
@@ -91,15 +107,37 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       Promise.race([
         fetch(request).then((res) => {
-          // waitUntil, so the worker cannot be killed mid-write and leave the
-          // shell unrefreshed for the next visit.
-          event.waitUntil(caches.open(SHELL).then((c) => c.put('./index.html', res.clone())));
+          // Keyed on the REQUEST, not on a fixed './index.html'.
+          //
+          // The fixed key was a latent bug: every successful navigation
+          // overwrote the cached app shell with whatever page had just been
+          // fetched. It was harmless only while '/' was the single navigable
+          // URL. Now that /glossary/<term>/ exists, visiting one glossary page
+          // would have made it the page served offline for '/'.
+          //
+          // Redirected responses are skipped because cache.put() rejects on
+          // them, and a request for /glossary/x without the trailing slash gets
+          // a 301 from mod_dir. That rejection would be unhandled inside
+          // waitUntil.
+          if (res.ok && !res.redirected) {
+            event.waitUntil(
+              caches
+                .open(SHELL)
+                .then((c) => c.put(request, res.clone()))
+                .catch(() => {}),
+            );
+          }
           return res;
         }),
-        new Promise((resolve) =>
-          setTimeout(() => resolve(caches.match('./index.html').then((r) => r ?? fetch(request))), 3000),
-        ),
-      ]).catch(() => caches.match('./index.html').then((r) => r ?? Response.error())),
+        // Resolve ONLY if something cached is available. Resolving with an
+        // empty result would abort a merely-slow navigation that was going to
+        // succeed.
+        new Promise((resolve) => {
+          setTimeout(() => {
+            void navigationFallback(request).then((r) => r && resolve(r));
+          }, 3000);
+        }),
+      ]).catch(() => navigationFallback(request).then((r) => r ?? Response.error())),
     );
     return;
   }

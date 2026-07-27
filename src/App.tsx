@@ -9,7 +9,7 @@
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import {
-  BookOpen, Compass, FlaskConical, GaugeCircle, History, Info, LayoutGrid, Menu, Moon, Sun,
+  BookMarked, BookOpen, Compass, FlaskConical, GaugeCircle, History, Info, LayoutGrid, Menu, Moon, Sun,
   Search, WifiOff, X,
 } from 'lucide-react';
 
@@ -213,6 +213,17 @@ export default function App() {
                 {label}
               </a>
             ))}
+
+            {/* Not a NAV entry, because it is not a route. The glossary is a set
+                of static documents at real paths, served without this app; a
+                plain anchor is a full navigation and that is correct. */}
+            <a
+              href="/glossary/"
+              className="flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-sm text-ink-dim transition-colors hover:bg-panel-2 hover:text-ink-strong"
+            >
+              <BookMarked className="size-4" aria-hidden />
+              Glossary
+            </a>
           </nav>
 
           <div className="ml-auto flex items-center gap-1 xl:ml-2">
@@ -375,6 +386,14 @@ export default function App() {
               What this app does and does not do
             </a>
             .
+          </p>
+          <p>
+            Unfamiliar with a term?{' '}
+            <a className="text-accent underline underline-offset-2" href="/glossary/">
+              The glossary
+            </a>{' '}
+            defines the vocabulary used across this atlas, each entry stating the condition that
+            definitions of it usually leave out.
           </p>
         </div>
       </footer>

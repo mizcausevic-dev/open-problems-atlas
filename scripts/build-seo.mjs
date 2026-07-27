@@ -3,11 +3,12 @@
  *
  * Generates dist/sitemap.xml and dist/robots.txt after the build.
  *
- * The sitemap has ONE url, and that is correct rather than a placeholder. The
- * app uses hash routing, so `#/p/riemann-hypothesis` is not a separate URL —
+ * The sitemap lists the app once and each glossary page individually. The app
+ * uses hash routing, so `#/p/riemann-hypothesis` is not a separate URL —
  * crawlers strip fragments, and listing them would be listing the same page 591
- * times. A single-entry sitemap is still worth shipping: it is what Search
- * Console consumes on submission, and it carries a truthful lastmod.
+ * times. The glossary pages are static documents at real paths, so they are
+ * listed one by one. See the note above `glossaryUrls` for why the problems are
+ * not treated the same way.
  *
  * lastmod is the date the DATASET was generated, not the wall clock. A build
  * timestamp would claim the content changed every time the CSS did. The dataset
@@ -18,6 +19,7 @@ import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { TERMS } from '../src/data/glossary.mjs';
 
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const SITE = 'https://openmathproblems.kineticgain.com';
@@ -26,11 +28,29 @@ const dataset = JSON.parse(readFileSync(resolve(REPO, 'src/data/problems.generat
 const lastmod = dataset.meta.generatedAt;
 const revision = dataset.meta.source.revisionId;
 
+/**
+ * The sitemap lists the application once and every glossary page individually,
+ * and the asymmetry is the decision rather than an oversight.
+ *
+ * The app is hash-routed, so #/p/<id> is not a separate URL — crawlers discard
+ * fragments, and listing 591 of them would be listing the same document 591
+ * times. The glossary pages are real paths serving real documents, so they are
+ * listed. Prerendering the 591 problems to paths as well was considered and
+ * refused: the median problem's own statement is 68 characters and 122 have
+ * none, which is a few hundred thin pages. A written definition is not.
+ */
+const glossaryUrls = TERMS.map(
+  (t) => `  <url>
+    <loc>${SITE}/glossary/${t.slug}/</loc>
+    <lastmod>${lastmod}</lastmod>
+  </url>`,
+).join('\n');
+
 const sitemap = `<?xml version="1.0" encoding="UTF-8"?>
 <!--
-  One entry, deliberately. This is a hash-routed single-page application: every
-  view is served by this one document and fragments are not separate URLs.
-  Listing #/p/<id> here would be listing the same page 591 times.
+  The application is one entry: it is a hash-routed single-page app, every view
+  is served by that one document, and fragments are not separate URLs.
+  The glossary pages below are static documents at real paths, one per term.
   lastmod is the date the underlying dataset was generated from Wikipedia
   revision ${revision}, not the date this file was built.
 -->
@@ -40,6 +60,11 @@ const sitemap = `<?xml version="1.0" encoding="UTF-8"?>
     <lastmod>${lastmod}</lastmod>
     <changefreq>monthly</changefreq>
   </url>
+  <url>
+    <loc>${SITE}/glossary/</loc>
+    <lastmod>${lastmod}</lastmod>
+  </url>
+${glossaryUrls}
 </urlset>
 `;
 
@@ -56,9 +81,11 @@ const robots = `# https://openmathproblems.kineticgain.com/
 # extracts are from Wikipedia under CC BY-SA 4.0 and must keep that licence.
 # See ${SITE}/#/about and the repository's LICENSE-DATA.md.
 #
-# Note for crawlers that do not execute JavaScript: this is a client-rendered
-# application, so the served HTML is a shell. The machine-readable dataset is
-# published at the JSON path below and is a better source than the rendered page.
+# Note for crawlers that do not execute JavaScript: the application at / is
+# client-rendered, and its served HTML carries a static summary of the dataset
+# rather than the full interface. The glossary under /glossary/ is different —
+# those are plain static documents with no JavaScript at all, and what is served
+# is exactly what a browser displays.
 
 User-agent: *
 Allow: /
@@ -119,7 +146,9 @@ writeFileSync(resolve(REPO, 'dist/.well-known/security.txt'), securityTxt, 'utf8
 writeFileSync(resolve(REPO, 'dist/sitemap.xml'), sitemap, 'utf8');
 writeFileSync(resolve(REPO, 'dist/robots.txt'), robots, 'utf8');
 
-console.log(`SEO: sitemap.xml (1 url, lastmod ${lastmod}), robots.txt, security.txt written`);
+console.log(
+  `SEO: sitemap.xml (${TERMS.length + 2} urls: app, glossary index, ${TERMS.length} terms; lastmod ${lastmod}), robots.txt, security.txt written`,
+);
 
 // ---------------------------------------------------------------------------
 // Content-Security-Policy: replace script-src 'unsafe-inline' with a hash.
@@ -242,7 +271,15 @@ if (!html.includes('<!--__PRERENDER__-->')) {
   process.exit(1);
 }
 
-html = html.replace('<!--__PRERENDER__-->', prerender);
+// A replacer FUNCTION, not a replacement string.
+//
+// String.replace treats `$&`, `` $` ``, `$'` and `$$` as special inside the
+// replacement even when the pattern is a plain string. The prerender block is
+// built from dataset text, 129 of the 591 descriptions contain `$` (KaTeX
+// delimiters), and one contains the sequence `$K$'s` — `$'` expands to
+// everything after the match, which would silently duplicate the tail of the
+// document into the page. A function replacement disables all of that.
+html = html.replace('<!--__PRERENDER__-->', () => prerender);
 writeFileSync(resolve(REPO, 'dist/index.html'), html, 'utf8');
 console.log(
   `SEO: prerendered ${problems.length} problems across ${byField.length} fields into the root document`,

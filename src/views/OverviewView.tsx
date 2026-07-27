@@ -21,6 +21,7 @@ import { fieldColor } from '../lib/fields';
 import { href } from '../lib/router';
 import { Button, Chip, FieldChip, Panel, SectionTitle, fmt } from '../components/ui';
 import { RichText } from '../components/Tex';
+import { IntroVideo } from '../components/IntroVideo';
 
 interface Props {
   dataset: Dataset;
@@ -110,6 +111,18 @@ export default function OverviewView({ dataset, dark, onOpen, onField }: Props) 
           {counts.settled} have been settled since 1995, and {counts.partlySettled} are listed as
           both. Track the ones you care about; everything you record stays in this browser.
         </p>
+
+        {/* Below the headline rather than above it. The hero states what this is
+            in text a crawler and a screen reader both get for free; a video
+            placed first would push that below the fold and make the first
+            paintable element one this page does not control. */}
+        <div className="mt-6">
+          <IntroVideo
+            videoId="uXPiFtLEHSU"
+            title="The living index of unsolved mathematics"
+            channel="KG303 - Media"
+          />
+        </div>
 
         <div className="mt-6 flex flex-wrap gap-2">
           <a
