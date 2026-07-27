@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Open Problems Atlas — every unsolved problem in mathematics, tracked</title>
+    <meta
+      name="description"
+      content="Browse every open and recently solved problem from Wikipedia's List of unsolved problems in mathematics. Keep a private, encrypted research journal. Run the mathematics yourself in an interactive lab. Works offline."
+    />
+    <meta name="color-scheme" content="dark light" />
+    <meta name="theme-color" content="#0B0C10" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="icon" href="./icon.svg" type="image/svg+xml" />
+    <script>
+      // Applied before first paint so there is no light-mode flash on load.
+      try {
+        const saved = localStorage.getItem('opa.theme');
+        const dark = saved ? saved === 'dark' : !window.matchMedia('(prefers-color-scheme: light)').matches;
+        document.documentElement.classList.toggle('dark', dark);
+      } catch { /* private mode: keep the default dark class */ }
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <noscript>
+      Open Problems Atlas is a client-side application and needs JavaScript. The underlying data is
+      Wikipedia's <a href="https://en.wikipedia.org/wiki/List_of_unsolved_problems_in_mathematics">List of
+      unsolved problems in mathematics</a>, which is readable without it.
+    </noscript>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

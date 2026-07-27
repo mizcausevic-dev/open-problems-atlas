@@ -1,0 +1,214 @@
+@import 'tailwindcss';
+@import 'katex/dist/katex.min.css';
+
+/* Class-driven dark mode rather than prefers-color-scheme alone, so the toggle
+   can override the OS setting and persist that choice. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ---------------------------------------------------------------------------
+   Palette
+
+   Dark is the primary design (BERT: near-black ground, slate panels, cyan
+   accent). Light is a genuine companion palette, not an inversion: the cyan
+   #66FCF1 has a contrast ratio near 1.2 on white and is unreadable there, so
+   light mode uses a deep teal for the same role.
+   --------------------------------------------------------------------------- */
+
+:root {
+  --c-bg: #f4f6f7;
+  --c-bg-elev: #ffffff;
+  --c-panel: #ffffff;
+  --c-panel-2: #eaeff1;
+  --c-line: #d3dbdf;
+  --c-line-soft: #e4eaec;
+  --c-ink: #29323b;
+  --c-ink-strong: #0b0c10;
+  --c-ink-dim: #5b6a75;
+  --c-accent: #0a7168;
+  --c-accent-soft: #d3f2ee;
+  --c-accent-ink: #05433d;
+  --c-open: #9a6700;
+  --c-open-soft: #fdf3d8;
+  --c-solved: #0f7b4f;
+  --c-solved-soft: #d8f3e5;
+  --c-partial: #6d4aae;
+  --c-partial-soft: #ebe4fa;
+  --c-danger: #b42318;
+  --shadow-panel: 0 1px 2px rgb(11 12 16 / 0.06), 0 8px 24px -12px rgb(11 12 16 / 0.18);
+}
+
+.dark {
+  --c-bg: #0b0c10;
+  --c-bg-elev: #101319;
+  --c-panel: #161b23;
+  --c-panel-2: #1f2833;
+  --c-line: #2a3441;
+  --c-line-soft: #1e2530;
+  --c-ink: #c5c6c7;
+  --c-ink-strong: #f2f4f5;
+  --c-ink-dim: #7f8b98;
+  --c-accent: #66fcf1;
+  --c-accent-soft: #10312f;
+  --c-accent-ink: #9dfff7;
+  --c-open: #f0b429;
+  --c-open-soft: #2e2510;
+  --c-solved: #56d9a3;
+  --c-solved-soft: #102c22;
+  --c-partial: #b79cf0;
+  --c-partial-soft: #221a33;
+  --c-danger: #ff6b5e;
+  --shadow-panel: 0 1px 2px rgb(0 0 0 / 0.4), 0 12px 32px -16px rgb(0 0 0 / 0.7);
+}
+
+@theme inline {
+  --color-bg: var(--c-bg);
+  --color-elev: var(--c-bg-elev);
+  --color-panel: var(--c-panel);
+  --color-panel-2: var(--c-panel-2);
+  --color-line: var(--c-line);
+  --color-line-soft: var(--c-line-soft);
+  --color-ink: var(--c-ink);
+  --color-ink-strong: var(--c-ink-strong);
+  --color-ink-dim: var(--c-ink-dim);
+  --color-accent: var(--c-accent);
+  --color-accent-soft: var(--c-accent-soft);
+  --color-accent-ink: var(--c-accent-ink);
+  --color-open: var(--c-open);
+  --color-open-soft: var(--c-open-soft);
+  --color-solved: var(--c-solved);
+  --color-solved-soft: var(--c-solved-soft);
+  --color-partial: var(--c-partial);
+  --color-partial-soft: var(--c-partial-soft);
+  --color-danger: var(--c-danger);
+
+  /* System stacks: no webfont request, no third-party host, nothing to
+     self-host. Sans everywhere including headings, never a default serif. */
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+    'Noto Sans', sans-serif;
+  --font-mono:
+    ui-monospace, 'JetBrains Mono', 'SF Mono', 'Cascadia Mono', 'Segoe UI Mono', 'Roboto Mono',
+    Menlo, Consolas, monospace;
+}
+
+/* ---------------------------------------------------------------------------
+   Base
+   --------------------------------------------------------------------------- */
+
+html {
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background: var(--c-bg);
+  color: var(--c-ink);
+  font-family: var(--font-sans);
+  font-synthesis-weight: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+h1, h2, h3, h4 {
+  color: var(--c-ink-strong);
+  letter-spacing: -0.015em;
+  text-wrap: balance;
+}
+
+/* A visible, high-contrast focus ring on every interactive element. Browsers
+   only show :focus-visible for keyboard users, so this costs mouse users
+   nothing and makes the app navigable without one. */
+:focus-visible {
+  outline: 2px solid var(--c-accent);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+::selection {
+  background: var(--c-accent);
+  color: var(--c-bg);
+}
+
+/* Respect the OS "reduce motion" setting. Framer Motion is told separately via
+   useReducedMotion; this covers CSS transitions and the smooth scroll above. */
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Components
+   --------------------------------------------------------------------------- */
+
+@utility panel {
+  background: var(--c-panel);
+  border: 1px solid var(--c-line);
+  border-radius: 0.75rem;
+}
+
+@utility hairline {
+  border-color: var(--c-line);
+}
+
+/* Thin scrollbars that do not fight the dark ground. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--c-line) transparent;
+}
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb {
+  background: var(--c-line);
+  border-radius: 99px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+
+/* KaTeX inherits the surrounding colour and never introduces a horizontal
+   page scroll: long display maths scrolls inside its own box. */
+.katex { font-size: 1.02em; color: inherit; }
+.katex-display {
+  margin: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-block: 0.25rem;
+}
+
+/* ---------------------------------------------------------------------------
+   Print: this is the PDF export path, so it is designed, not left to chance.
+   --------------------------------------------------------------------------- */
+
+@media print {
+  @page { margin: 18mm 16mm; }
+
+  :root {
+    --c-bg: #ffffff;
+    --c-panel: #ffffff;
+    --c-panel-2: #ffffff;
+    --c-ink: #000000;
+    --c-ink-strong: #000000;
+    --c-ink-dim: #444444;
+    --c-line: #cccccc;
+  }
+
+  html.dark { color-scheme: light; }
+
+  body { background: #fff !important; color: #000 !important; font-size: 11pt; }
+
+  [data-print='hide'] { display: none !important; }
+
+  a[href^='http']::after {
+    content: ' (' attr(href) ')';
+    font-size: 8pt;
+    color: #555;
+    word-break: break-all;
+  }
+
+  h1, h2, h3 { break-after: avoid-page; }
+  article, li, .panel { break-inside: avoid-page; }
+}

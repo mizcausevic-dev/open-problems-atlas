@@ -1,0 +1,379 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Open Problems Atlas — scoping decision tree and capability matrix</title>
+<style>
+:root{
+  --bg:#0B0C10; --elev:#101319; --panel:#161B23; --panel2:#1F2833;
+  --line:#2A3441; --ink:#C5C6C7; --ink-strong:#F2F4F5; --ink-dim:#7F8B98;
+  --accent:#66FCF1; --accent-soft:#10312F; --accent-ink:#9DFFF7;
+  --ok:#56D9A3; --ok-soft:#102C22;
+  --warn:#F0B429; --warn-soft:#2E2510;
+  --no:#7F8B98; --no-soft:#1A1F27;
+  --bad:#FF6B5E; --bad-soft:#2E1512;
+  --mono:ui-monospace,"JetBrains Mono","SF Mono","Cascadia Mono","Segoe UI Mono",Menlo,Consolas,monospace;
+  --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+}
+[data-theme=light]{
+  --bg:#F4F6F7; --elev:#FFF; --panel:#FFF; --panel2:#EAEFF1;
+  --line:#D3DBDF; --ink:#29323B; --ink-strong:#0B0C10; --ink-dim:#5B6A75;
+  --accent:#0A7168; --accent-soft:#D3F2EE; --accent-ink:#05433D;
+  --ok:#0F7B4F; --ok-soft:#D8F3E5;
+  --warn:#9A6700; --warn-soft:#FDF3D8;
+  --no:#5B6A75; --no-soft:#E8ECEE;
+  --bad:#B42318; --bad-soft:#FDE7E4;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.55;
+  -webkit-font-smoothing:antialiased;overflow-x:hidden}
+.wrap{max-width:1180px;margin:0 auto;padding:28px 20px 72px}
+h1,h2,h3{color:var(--ink-strong);letter-spacing:-.02em;line-height:1.2;text-wrap:balance}
+h1{font-size:clamp(24px,4.2vw,38px);font-weight:650}
+h2{font-size:clamp(17px,2.4vw,21px);font-weight:620;margin-bottom:6px}
+h3{font-size:14px;font-weight:600}
+.sub{color:var(--ink-dim);font-size:14px;max-width:70ch}
+.mono{font-family:var(--mono)}
+section{margin-top:48px}
+.eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--accent);margin-bottom:8px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:14px}
+
+/* header */
+header{display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap}
+header .grow{flex:1;min-width:260px}
+button{font:inherit;cursor:pointer;background:var(--panel);color:var(--ink);
+  border:1px solid var(--line);border-radius:9px;padding:7px 12px;font-size:13px;
+  transition:border-color .15s,color .15s,background .15s}
+button:hover{border-color:var(--accent);color:var(--ink-strong)}
+button[aria-pressed=true]{background:var(--accent-soft);border-color:var(--accent);
+  color:var(--accent-ink);font-weight:600}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+
+/* stat strip */
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-top:24px}
+.stat{padding:14px 16px}
+.stat .k{font-family:var(--mono);font-size:26px;font-weight:600;color:var(--ink-strong);line-height:1}
+.stat .l{font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--ink-dim);margin-top:7px}
+.stat .n{font-size:11px;color:var(--ink-dim);margin-top:4px;line-height:1.4}
+.stat.accent .k{color:var(--accent)}
+.stat.ok .k{color:var(--ok)}
+.stat.bad .k{color:var(--bad)}
+
+/* decision tree */
+.tree{padding:22px 20px;overflow-x:auto}
+.tree svg{display:block;min-width:660px;width:100%;height:auto}
+.tn{fill:var(--panel2);stroke:var(--line)}
+.tn.q{fill:var(--accent-soft);stroke:var(--accent)}
+.tn.y{fill:var(--ok-soft);stroke:var(--ok)}
+.tn.p{fill:var(--warn-soft);stroke:var(--warn)}
+.tn.n{fill:var(--no-soft);stroke:var(--no)}
+.tt{fill:var(--ink-strong);font:600 12.5px var(--sans)}
+.ts{fill:var(--ink-dim);font:11px var(--sans)}
+.tl{stroke:var(--line);stroke-width:1.5;fill:none}
+.tlab{fill:var(--ink-dim);font:600 10px var(--mono);letter-spacing:.06em}
+
+/* matrix */
+.filters{display:flex;flex-wrap:wrap;gap:8px;margin:16px 0}
+.row{display:grid;grid-template-columns:118px 1fr;gap:14px;padding:15px 18px;
+  border-bottom:1px solid var(--line);align-items:start}
+.row:last-child{border-bottom:0}
+.tag{display:inline-flex;align-items:center;gap:5px;border-radius:99px;padding:3px 9px;
+  font-size:11px;font-weight:600;border:1px solid;white-space:nowrap}
+.tag.built{color:var(--ok);background:var(--ok-soft);border-color:color-mix(in srgb,var(--ok) 35%,transparent)}
+.tag.partial{color:var(--warn);background:var(--warn-soft);border-color:color-mix(in srgb,var(--warn) 35%,transparent)}
+.tag.none{color:var(--no);background:var(--no-soft);border-color:var(--line)}
+.row .name{font-weight:600;color:var(--ink-strong);font-size:14.5px}
+.row .why{font-size:13px;color:var(--ink-dim);margin-top:4px}
+.row .them{font-size:12px;margin-top:8px;padding:7px 10px;border-radius:8px;
+  background:var(--bad-soft);color:var(--bad);border:1px solid color-mix(in srgb,var(--bad) 25%,transparent)}
+.row .them b{font-weight:600}
+.row .them.neutral{background:var(--panel2);color:var(--ink-dim);border-color:var(--line)}
+
+/* audit table */
+.tblwrap{overflow-x:auto;border-radius:14px;border:1px solid var(--line)}
+table{border-collapse:collapse;width:100%;min-width:660px;font-size:13px;background:var(--panel)}
+th,td{text-align:left;padding:11px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--ink-dim);font-weight:600;
+  background:var(--panel2);position:sticky;top:0}
+tr:last-child td{border-bottom:0}
+td.f{color:var(--bad)}
+td.t{color:var(--ok)}
+code{font-family:var(--mono);font-size:.92em;background:var(--panel2);padding:1px 5px;border-radius:4px}
+
+/* pipeline */
+.pipe{display:grid;grid-template-columns:repeat(auto-fit,minmax(178px,1fr));gap:12px;margin-top:16px}
+.step{padding:15px 16px;position:relative}
+.step .i{font-family:var(--mono);font-size:11px;color:var(--accent);letter-spacing:.1em}
+.step h3{margin:7px 0 5px}
+.step p{font-size:12.5px;color:var(--ink-dim)}
+.step .g{font-family:var(--mono);font-size:11px;color:var(--warn);margin-top:8px;display:block;line-height:1.45}
+
+.note{margin-top:14px;padding:12px 15px;border-radius:11px;background:var(--panel2);
+  border:1px solid var(--line);font-size:13px;color:var(--ink-dim)}
+.note.warn{background:var(--warn-soft);border-color:color-mix(in srgb,var(--warn) 30%,transparent);color:var(--warn)}
+footer{margin-top:56px;padding-top:20px;border-top:1px solid var(--line);
+  font-size:12px;color:var(--ink-dim)}
+@media (max-width:640px){ .row{grid-template-columns:1fr;gap:8px} }
+@media (prefers-reduced-motion:reduce){ *{transition:none!important} }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="grow">
+    <div class="eyebrow">Open Problems Atlas · scoping artefact</div>
+    <h1>What can a client-side app honestly claim?</h1>
+    <p class="sub" style="margin-top:10px">
+      The brief asked for roughly forty features in one sentence, several of which cannot be
+      truthfully delivered without a server. This is the test each one was put through, what
+      survived it, and what the alternative build shipped instead.
+    </p>
+  </div>
+  <button id="theme" aria-pressed="true" aria-label="Toggle light and dark theme">◐ Theme</button>
+</header>
+
+<div class="stats">
+  <div class="panel stat accent"><div class="k">591</div><div class="l">Problems</div>
+    <div class="n">generated from the source article, revision 1366281547</div></div>
+  <div class="panel stat"><div class="k">11</div><div class="l">In the other build</div>
+    <div class="n">hand-written, 1.9% of the list</div></div>
+  <div class="panel stat ok"><div class="k">71</div><div class="l">Tests passing</div>
+    <div class="n">maths, crypto, search, dataset integrity</div></div>
+  <div class="panel stat bad"><div class="k">5</div><div class="l">Fabrication sites removed</div>
+    <div class="n">each one shipped as a real-looking number</div></div>
+</div>
+
+<section>
+  <div class="eyebrow">The test</div>
+  <h2>One question per requested feature</h2>
+  <p class="sub">Applied to every item in the brief. The third outcome is the one most builds skip.</p>
+
+  <div class="panel tree" style="margin-top:16px">
+  <svg viewBox="0 0 900 380" role="img"
+       aria-label="Decision tree. A requested feature is asked whether it needs a server. If no, build it fully. If yes, ask whether a client-side equivalent is honest. If yes, build the smaller thing and name it accurately. If no, do not build it and publish the gap with the reason.">
+    <!-- edges -->
+    <path class="tl" d="M170 62 H228"/>
+    <path class="tl" d="M330 62 H392"/>
+    <path class="tl" d="M461 92 V150"/>
+    <path class="tl" d="M461 236 V282"/>
+    <path class="tl" d="M560 190 H660"/>
+    <path class="tl" d="M560 312 H660"/>
+
+    <!-- start -->
+    <rect class="tn" x="20" y="38" width="150" height="48" rx="10"/>
+    <text class="tt" x="95" y="60" text-anchor="middle">Requested feature</text>
+    <text class="ts" x="95" y="76" text-anchor="middle">from the brief</text>
+
+    <!-- q1 -->
+    <rect class="tn q" x="228" y="38" width="164" height="48" rx="10"/>
+    <text class="tt" x="310" y="60" text-anchor="middle">Needs a server?</text>
+    <text class="ts" x="310" y="76" text-anchor="middle">state, identity, or delivery</text>
+
+    <!-- no -> build -->
+    <rect class="tn y" x="392" y="38" width="200" height="48" rx="10"/>
+    <text class="tlab" x="392" y="54" text-anchor="start" dx="-40">NO</text>
+    <text class="tt" x="492" y="60" text-anchor="middle">Build it properly</text>
+    <text class="ts" x="492" y="76" text-anchor="middle">search, notes, lab, export, offline</text>
+
+    <!-- q2 -->
+    <rect class="tn q" x="330" y="150" width="262" height="86" rx="10"/>
+    <text class="tlab" x="470" y="120">YES</text>
+    <text class="tt" x="461" y="180" text-anchor="middle">Is there a client-side equivalent</text>
+    <text class="tt" x="461" y="198" text-anchor="middle">that is honestly describable?</text>
+    <text class="ts" x="461" y="218" text-anchor="middle">not "looks like it", actually is</text>
+
+    <!-- yes -> smaller -->
+    <rect class="tn p" x="660" y="166" width="220" height="48" rx="10"/>
+    <text class="tlab" x="576" y="182">YES</text>
+    <text class="tt" x="770" y="188" text-anchor="middle">Build the smaller thing</text>
+    <text class="ts" x="770" y="204" text-anchor="middle">and call it by its real name</text>
+
+    <!-- no -> gap -->
+    <rect class="tn n" x="660" y="288" width="220" height="48" rx="10"/>
+    <text class="tlab" x="576" y="304">NO</text>
+    <text class="tt" x="770" y="310" text-anchor="middle">Do not build it</text>
+    <text class="ts" x="770" y="326" text-anchor="middle">publish the gap, with the reason</text>
+
+    <!-- bottom node -->
+    <rect class="tn" x="330" y="282" width="262" height="60" rx="10"/>
+    <text class="tt" x="461" y="308" text-anchor="middle">Never: ship the appearance</text>
+    <text class="ts" x="461" y="326" text-anchor="middle">a badge, a mock, a plausible fallback number</text>
+  </svg>
+  </div>
+
+  <div class="note warn">
+    The failure mode this exists to prevent is not laziness, it is diligence pointed the wrong way.
+    A fabricated pageview count takes <em>more</em> code than an error state.
+  </div>
+</section>
+
+<section>
+  <div class="eyebrow">Outcome</div>
+  <h2>Capability matrix</h2>
+  <p class="sub">Every row is checkable from the running app. Red boxes are what the comparison build shipped for the same row.</p>
+
+  <div class="filters" role="group" aria-label="Filter capabilities">
+    <button data-f="all" aria-pressed="true">All 16</button>
+    <button data-f="built" aria-pressed="false">Built</button>
+    <button data-f="partial" aria-pressed="false">Partly</button>
+    <button data-f="none" aria-pressed="false">Not built</button>
+  </div>
+
+  <div class="panel" id="matrix"></div>
+</section>
+
+<section>
+  <div class="eyebrow">Audit</div>
+  <h2>Five invented numbers, and what replaced them</h2>
+  <p class="sub">Each was verified in the comparison build's source before being listed here.</p>
+
+  <div class="tblwrap" style="margin-top:16px">
+    <table>
+      <thead><tr><th>Where</th><th>What it produced</th><th>Why it matters</th><th>Here instead</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><code>utils/wikimedia.ts:67</code></td>
+          <td class="f">Hashed the article title into a fake view count, velocity and sparkline when the API failed</td>
+          <td>Identical return type to real data, same chart, same "last updated" stamp. Indistinguishable.</td>
+          <td class="t">Returns an error with its reason. No number is shown.</td>
+        </tr>
+        <tr>
+          <td><code>data/problems.ts</code></td>
+          <td class="f"><code>consensusProgress</code> on all 11 problems (Riemann 35, Collatz 60)</td>
+          <td>Rendered as a progress bar. No such measurement exists for an unsolved problem.</td>
+          <td class="t">No such field. A test greps the dataset and fails the build if one appears.</td>
+        </tr>
+        <tr>
+          <td><code>server.ts:38</code></td>
+          <td class="f">"The mathematical syntax is well-formed… Key steps logically connect Lemma 1 to Theorem 1" — returned for any input</td>
+          <td>Tells someone with a wrong proof that it holds together. There is no Lemma 1.</td>
+          <td class="t">No AI review. Links to Lean, which actually checks proofs.</td>
+        </tr>
+        <tr>
+          <td><code>App.tsx:97, :703</code></td>
+          <td class="f"><code>encryptionMode:'End-to-End AES-256'</code> rendered as <b>E2E ENCRYPTION SECURED</b></td>
+          <td>A string. No <code>crypto.subtle</code> call exists anywhere in that build.</td>
+          <td class="t">Real AES-256-GCM + PBKDF2 at 600k iterations, tested, named "encryption at rest".</td>
+        </tr>
+        <tr>
+          <td><code>App.tsx:49</code></td>
+          <td class="f">Boots as <b>Dr. Elena Vance</b>, Verified Researcher, IAS Princeton, ORCID, <code>isVerified:true</code></td>
+          <td>Plus invented Slack notifications and peer reviews from named people who do not exist.</td>
+          <td class="t">No user object. The dashboard is empty until you fill it.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section>
+  <div class="eyebrow">Provenance</div>
+  <h2>How 591 problems get here</h2>
+  <p class="sub">Four stages, each with the bug it produced before it worked. Amber text is what went wrong.</p>
+
+  <div class="pipe">
+    <div class="panel step">
+      <span class="i">01 · FETCH</span>
+      <h3>MediaWiki API</h3>
+      <p>218 KB of wikitext plus the revision ID, which is recorded so a reader can diff against the source.</p>
+    </div>
+    <div class="panel step">
+      <span class="i">02 · NORMALISE</span>
+      <h3>Collapse and mask</h3>
+      <p>Citations and templates wrap across lines; the list structure is line-based.</p>
+      <span class="g">Multi-line refs leaked <code>&lt;ref&gt;</code> into descriptions until newlines inside them were collapsed first.</span>
+    </div>
+    <div class="panel step">
+      <span class="i">03 · PARSE</span>
+      <h3>Bullets to entries</h3>
+      <p>Headings give the field, nesting gives parent links, the trailing parenthetical gives solver and year.</p>
+      <span class="g">Sub-bullets were skipped at first — which dropped the Riemann Hypothesis, a <code>**</code> item.</span>
+    </div>
+    <div class="panel step">
+      <span class="i">04 · VERIFY</span>
+      <h3>18 dataset tests</h3>
+      <p>Markup residue, balanced <code>$</code>, valid parent links, all seven Millennium problems, no invented metrics.</p>
+      <span class="g">Caught an entry titled "Aleksandar Nikolov" — the person who settled it, not the problem.</span>
+    </div>
+  </div>
+
+  <div class="note">
+    Conflicting listings are kept as explicit variants rather than merged. The Jacobian conjecture is
+    open in two dimensions and was disproven above two in 2026; blending those into one status would
+    state something the source does not.
+  </div>
+</section>
+
+<footer>
+  Open Problems Atlas · scoping artefact, 27 July 2026 · Kinetic Gain LLC.<br>
+  Problem data from the English Wikipedia article <em>List of unsolved problems in mathematics</em>,
+  revision 1366281547, reused under CC BY-SA 4.0. Single file, no external requests.
+</footer>
+
+</div>
+
+<script>
+const CAPS = [
+  ['built','Complete problem list','All 591 entries generated by a script in the repo. Re-running it picks up article edits.','11 hand-written problems, 1.9% of the list.'],
+  ['built','Ranked search and filtering','Titles, statements, fields and solvers. Filters for field, status, Millennium, sub-cases and your own tracking, all combining.','Substring match over 11 items.',1],
+  ['built','Progress tracking','Five states, self-assessed difficulty, hand-logged time. Per problem.','Present, alongside a fabricated consensusProgress bar.'],
+  ['built','LaTeX notes + revision history','KaTeX with live preview; last 20 versions kept and restorable.','Present and genuinely good. Ported.',1],
+  ['built','Encryption at rest','AES-256-GCM, PBKDF2-SHA256 at 600,000 iterations, derived in the page. Tested four ways.','A badge reading E2E ENCRYPTION SECURED. No crypto call in the build.'],
+  ['built','Offline','Service worker precaches shell and dataset. Wikimedia responses deliberately never cached.','localStorage writes described as offline sync.'],
+  ['built','Export: JSON / LaTeX / Markdown / PDF','JSON round-trips. The .tex compiles with no extra packages. PDF via the print pipeline.','Mentioned in copy.'],
+  ['built','Live computation','Collatz orbits, sieve of Eratosthenes, Goldbach decompositions, Riemann–Siegel Z with zeros by bisection.','A 12-term divergent series captioned as ζ on the critical line.'],
+  ['built','Dark and light','Two designed palettes. The cyan accent is unreadable on white, so light mode uses a deep teal.','Inverted palette; cyan accent carried onto white.'],
+  ['built','Data provenance','Source URL, revision, licence, retrieval date. Every problem declares whether its field was parsed or curated.','No provenance recorded.'],
+  ['partial','Cross-device sync','By file: export JSON, import elsewhere, merges on most-recent-edit. No background sync, because no server.','Claimed as cloud sync; localStorage in fact.'],
+  ['partial','Backups','Manual export, on demand.','A settings panel reporting Google Cloud Storage and lastBackup = now, for a backup that never runs.'],
+  ['none','End-to-end encryption','Not applicable. E2E describes a message in transit between two parties; there is one party and no transit.','Shipped as a badge.'],
+  ['none','Accounts and verified experts','Verifying a mathematician needs an institutional check and a human process. A signup form verifies nothing.','isVerified: true on a hardcoded fictional professor.'],
+  ['none','Forum and peer review','Needs moderation, hosting and real membership. Links to MathOverflow instead.','Seeded with invented users and invented peer reviews.'],
+  ['none','AI proof checking','A language model cannot verify a proof of an open problem. Links to Lean, which can.','Returned "the syntax is well-formed" to any submission.'],
+];
+const LABEL = {built:'Built', partial:'Partly', none:'Not built'};
+
+const matrix = document.getElementById('matrix');
+function render(filter){
+  matrix.innerHTML = CAPS
+    .filter(c => filter === 'all' || c[0] === filter)
+    .map(([lvl,name,why,them,good]) => `
+      <div class="row">
+        <div><span class="tag ${lvl}">${LABEL[lvl]}</span></div>
+        <div>
+          <div class="name">${name}</div>
+          <div class="why">${why}</div>
+          <div class="them${good ? ' neutral' : ''}"><b>Other build:</b> ${them}</div>
+        </div>
+      </div>`).join('');
+}
+render('all');
+
+document.querySelectorAll('.filters button').forEach(b => {
+  b.addEventListener('click', () => {
+    document.querySelectorAll('.filters button')
+      .forEach(o => o.setAttribute('aria-pressed', String(o === b)));
+    render(b.dataset.f);
+  });
+});
+
+const root = document.documentElement;
+const toggle = document.getElementById('theme');
+try {
+  const saved = localStorage.getItem('opa-artefact-theme');
+  if (saved) root.dataset.theme = saved;
+  else if (matchMedia('(prefers-color-scheme: light)').matches) root.dataset.theme = 'light';
+} catch (e) { /* private mode: keep the default */ }
+const sync = () => toggle.setAttribute('aria-pressed', String(root.dataset.theme === 'dark'));
+sync();
+toggle.addEventListener('click', () => {
+  root.dataset.theme = root.dataset.theme === 'dark' ? 'light' : 'dark';
+  try { localStorage.setItem('opa-artefact-theme', root.dataset.theme); } catch (e) {}
+  sync();
+});
+</script>
+</body>
+</html>

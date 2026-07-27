@@ -1,0 +1,237 @@
+/**
+ * Application shell: header, navigation, route switch.
+ *
+ * Mobile navigation is a full-screen sheet, not a horizontally scrolling row of
+ * tabs. A scrolling tab strip hides its own overflow: items past the fold are
+ * invisible and undiscoverable on the device where screen space is scarcest.
+ */
+
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
+import {
+  BookOpen, Compass, FlaskConical, GaugeCircle, History, Info, Menu, Moon, Sun, WifiOff, X,
+} from 'lucide-react';
+
+import raw from './data/problems.generated.json';
+import type { Dataset } from './types';
+import { href, useRoute, type Route } from './lib/router';
+import { store } from './lib/storage';
+import { useDarkMode, useOnline } from './components/ui';
+
+import AtlasView from './views/AtlasView';
+import ProblemView from './views/ProblemView';
+import DashboardView from './views/DashboardView';
+import TimelineView from './views/TimelineView';
+import LabView from './views/LabView';
+import JournalView from './views/JournalView';
+import AboutView from './views/AboutView';
+
+const dataset = raw as unknown as Dataset;
+
+const NAV: { route: Route; label: string; icon: typeof Compass }[] = [
+  { route: { name: 'atlas' }, label: 'Atlas', icon: Compass },
+  { route: { name: 'dashboard' }, label: 'Progress', icon: GaugeCircle },
+  { route: { name: 'timeline' }, label: 'Solved', icon: History },
+  { route: { name: 'lab' }, label: 'Lab', icon: FlaskConical },
+  { route: { name: 'journal' }, label: 'Journal', icon: BookOpen },
+  { route: { name: 'about' }, label: 'About', icon: Info },
+];
+
+export default function App() {
+  const [route, navigate] = useRoute();
+  const [dark, toggleDark] = useDarkMode();
+  const online = useOnline();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const reduceMotion = useReducedMotion();
+
+  // The store is imperative; this re-renders the tree whenever it changes.
+  useSyncExternalStore(store.subscribe, store.getSnapshot, () => 0);
+
+  const problems = dataset.problems;
+  const byId = useMemo(() => new Map(problems.map((p) => [p.id, p])), [problems]);
+
+  // Close the mobile sheet on navigation, or it stays open over the new view.
+  useEffect(() => setMenuOpen(false), [route.name, route.name === 'problem' ? route.id : '']);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMenuOpen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  const active = (r: Route) => r.name === route.name;
+
+  return (
+    <div className="min-h-dvh bg-bg">
+      <a
+        href="#main"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50 focus:rounded-lg focus:bg-accent focus:px-3 focus:py-2 focus:text-sm focus:font-semibold focus:text-bg"
+      >
+        Skip to content
+      </a>
+
+      <header
+        data-print="hide"
+        className="sticky top-0 z-30 border-b border-line bg-bg/85 backdrop-blur-md"
+      >
+        <div className="mx-auto flex max-w-[1400px] items-center gap-3 px-4 py-3 sm:px-6">
+          <a
+            href={href({ name: 'atlas' })}
+            className="flex min-w-0 shrink-0 items-center gap-2.5"
+            aria-label="Open Problems Atlas, home"
+          >
+            <svg viewBox="0 0 64 64" className="size-8 shrink-0" aria-hidden>
+              <rect width="64" height="64" rx="14" className="fill-panel-2" />
+              <line x1="32" y1="12" x2="32" y2="52" stroke="var(--c-accent)" strokeWidth="1.5" strokeDasharray="3 3" opacity="0.7" />
+              <circle cx="32" cy="21" r="3" fill="var(--c-accent)" />
+              <circle cx="32" cy="32" r="3" fill="var(--c-accent)" />
+              <circle cx="32" cy="43" r="3" fill="var(--c-accent)" />
+            </svg>
+            <span className="min-w-0">
+              <span className="block truncate text-[13px] leading-tight font-semibold tracking-tight text-ink-strong">
+                Open Problems Atlas
+              </span>
+              <span className="hidden text-[11px] leading-tight text-ink-dim sm:block">
+                {dataset.meta.counts.open} open · {dataset.meta.counts.solved} settled since 1995
+              </span>
+            </span>
+          </a>
+
+          <nav className="ml-auto hidden items-center gap-0.5 lg:flex" aria-label="Main">
+            {NAV.map(({ route: r, label, icon: Icon }) => (
+              <a
+                key={label}
+                href={href(r)}
+                aria-current={active(r) ? 'page' : undefined}
+                className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm transition-colors ${
+                  active(r)
+                    ? 'bg-panel-2 font-semibold text-ink-strong'
+                    : 'text-ink-dim hover:bg-panel-2 hover:text-ink-strong'
+                }`}
+              >
+                <Icon className="size-4" aria-hidden />
+                {label}
+              </a>
+            ))}
+          </nav>
+
+          <div className="ml-auto flex items-center gap-1 lg:ml-2">
+            {!online && (
+              <span
+                className="flex items-center gap-1.5 rounded-full border border-open/40 bg-open-soft px-2 py-1 text-[11px] font-medium text-open"
+                title="You are offline. The atlas, lab and journal work; Wikipedia links and pageview statistics do not."
+              >
+                <WifiOff className="size-3.5" aria-hidden />
+                <span className="hidden sm:inline">Offline</span>
+              </span>
+            )}
+
+            <button
+              type="button"
+              onClick={toggleDark}
+              className="rounded-lg p-2 text-ink-dim transition-colors hover:bg-panel-2 hover:text-ink-strong"
+              aria-label={dark ? 'Switch to light theme' : 'Switch to dark theme'}
+            >
+              {dark ? <Sun className="size-4.5" aria-hidden /> : <Moon className="size-4.5" aria-hidden />}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setMenuOpen((v) => !v)}
+              className="rounded-lg p-2 text-ink-dim transition-colors hover:bg-panel-2 hover:text-ink-strong lg:hidden"
+              aria-label={menuOpen ? 'Close menu' : 'Open menu'}
+              aria-expanded={menuOpen}
+            >
+              {menuOpen ? <X className="size-5" aria-hidden /> : <Menu className="size-5" aria-hidden />}
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <AnimatePresence>
+        {menuOpen && (
+          <motion.div
+            key="sheet"
+            initial={reduceMotion ? false : { opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={reduceMotion ? { opacity: 1 } : { opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            className="fixed inset-0 z-40 bg-bg/95 backdrop-blur-sm lg:hidden"
+          >
+            <nav className="mx-auto flex max-w-lg flex-col gap-1 px-4 pt-20" aria-label="Main">
+              {NAV.map(({ route: r, label, icon: Icon }, i) => (
+                <motion.a
+                  key={label}
+                  href={href(r)}
+                  initial={reduceMotion ? false : { opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: reduceMotion ? 0 : i * 0.03, duration: 0.2 }}
+                  aria-current={active(r) ? 'page' : undefined}
+                  className={`flex items-center gap-3 rounded-xl border px-4 py-3.5 text-base ${
+                    active(r)
+                      ? 'border-accent/40 bg-accent-soft font-semibold text-accent-ink'
+                      : 'border-line bg-panel text-ink'
+                  }`}
+                >
+                  <Icon className="size-5 shrink-0" aria-hidden />
+                  {label}
+                </motion.a>
+              ))}
+            </nav>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <main id="main" className="mx-auto max-w-[1400px] px-4 py-6 sm:px-6 sm:py-8">
+        {route.name === 'atlas' && <AtlasView dataset={dataset} onOpen={(id) => navigate({ name: 'problem', id })} dark={dark} />}
+        {route.name === 'problem' && (
+          <ProblemView
+            problem={byId.get(route.id)}
+            dataset={dataset}
+            dark={dark}
+            online={online}
+            onOpen={(id) => navigate({ name: 'problem', id })}
+          />
+        )}
+        {route.name === 'dashboard' && <DashboardView dataset={dataset} dark={dark} onOpen={(id) => navigate({ name: 'problem', id })} />}
+        {route.name === 'timeline' && <TimelineView dataset={dataset} dark={dark} onOpen={(id) => navigate({ name: 'problem', id })} />}
+        {route.name === 'lab' && <LabView tool={route.tool} />}
+        {route.name === 'journal' && <JournalView dataset={dataset} onOpen={(id) => navigate({ name: 'problem', id })} />}
+        {route.name === 'about' && <AboutView dataset={dataset} />}
+      </main>
+
+      <footer data-print="hide" className="border-t border-line px-4 py-8 sm:px-6">
+        <div className="mx-auto flex max-w-[1400px] flex-col gap-2 text-xs text-ink-dim">
+          <p>
+            Problem data from the English Wikipedia article{' '}
+            <a
+              className="text-accent underline underline-offset-2"
+              href={dataset.meta.source.url}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              List of unsolved problems in mathematics
+            </a>
+            , revision {dataset.meta.source.revisionId ?? 'unknown'}, retrieved {dataset.meta.generatedAt}.
+            Reused under{' '}
+            <a
+              className="text-accent underline underline-offset-2"
+              href={dataset.meta.source.licenseUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              {dataset.meta.source.license}
+            </a>
+            .
+          </p>
+          <p>
+            Your tracking and notes stay in this browser. Nothing is uploaded, because there is no
+            server to upload to. <a className="text-accent underline underline-offset-2" href={href({ name: 'about' })}>What this app does and does not do</a>.
+          </p>
+        </div>
+      </footer>
+    </div>
+  );
+}

@@ -1,0 +1,26 @@
+{
+  "name": "Open Problems Atlas",
+  "short_name": "Atlas",
+  "description": "Every open problem from Wikipedia's List of unsolved problems in mathematics, with a private research journal and an interactive maths lab.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0B0C10",
+  "theme_color": "#0B0C10",
+  "categories": ["education", "productivity", "reference"],
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "./icon-maskable.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}

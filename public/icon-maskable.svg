@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Open Problems Atlas">
+  <!-- Maskable: artwork kept inside the safe zone (centre 80%) so platform
+       masks cannot crop it. -->
+  <rect width="64" height="64" fill="#0B0C10"/>
+  <line x1="32" y1="18" x2="32" y2="46" stroke="#45A29E" stroke-width="1.5" stroke-dasharray="3 3"/>
+  <circle cx="32" cy="24" r="2.6" fill="#66FCF1"/>
+  <circle cx="32" cy="33" r="2.6" fill="#66FCF1"/>
+  <circle cx="32" cy="42" r="2.6" fill="#66FCF1"/>
+  <path d="M19 42 C 24 32, 27 27, 30 24" fill="none" stroke="#C5C6C7" stroke-width="2" stroke-linecap="round" opacity="0.6"/>
+  <path d="M45 24 C 40 34, 37 39, 34 42" fill="none" stroke="#C5C6C7" stroke-width="2" stroke-linecap="round" opacity="0.6"/>
+</svg>
