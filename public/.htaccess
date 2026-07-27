@@ -54,10 +54,25 @@
   # ---------------------------------------------------------------------------
   # Security headers
   #
-  # The CSP is deliberately tight and is truthful about this app's behaviour:
-  # no third-party scripts, no analytics, no font CDN, and exactly one outbound
-  # connection — the Wikimedia pageviews API, requested only on demand. If that
-  # ever stops being true, this header breaks first, which is the point.
+  # The CSP is truthful about this app's behaviour: no third-party scripts, no
+  # analytics, no font CDN, and exactly one outbound connection — the Wikimedia
+  # pageviews API, requested only on demand. If that ever stops being true, this
+  # header breaks first, which is the point.
+  #
+  # script-src below still reads 'unsafe-inline' IN THIS SOURCE FILE. It does not
+  # ship that way: scripts/build-seo.mjs replaces it with a sha256 hash of the one
+  # inline script in the built index.html, and exits non-zero if the literal it
+  # expects is missing. Editing the directive here without updating that script
+  # therefore fails the build rather than quietly shipping a weaker policy.
+  #
+  # It read 'unsafe-inline' in production until an audit caught it, next to this
+  # comment claiming the policy was tight. It was not: with 'unsafe-inline' the
+  # directive's XSS value is close to zero, on the one page in this estate that
+  # derives an AES key from a passphrase and holds decrypted notes in memory.
+  #
+  # style-src keeps 'unsafe-inline' on purpose. Tailwind and motion both inject
+  # inline styles, and style-src is a materially lower-risk directive than
+  # script-src. That asymmetry is a decision, not the same oversight left in.
   # ---------------------------------------------------------------------------
   Header always set X-Content-Type-Options "nosniff"
   Header always set Referrer-Policy "strict-origin-when-cross-origin"

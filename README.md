@@ -80,11 +80,14 @@ note kept and restorable.
 **Encrypt it.** AES-256-GCM with a key derived by PBKDF2-SHA256 at 600,000 iterations, in the page.
 The passphrase is never stored and never transmitted.
 
-**Run the mathematics.** Four live tools, every input encoded in the URL so a computation is
-shareable: Collatz orbits, a real sieve of Eratosthenes with Goldbach decompositions, the
-Riemann–Siegel Z function with its zeros located by bisection, and **Robin's inequality** — which is
+**Run the mathematics.** Seven live tools, every input encoded in the URL so a computation is
+shareable: Collatz orbits; a real sieve of Eratosthenes with Goldbach decompositions; the
+Riemann–Siegel Z function with its zeros located by bisection; **Robin's inequality** — which is
 *equivalent* to the Riemann Hypothesis, so the Lab puts the same problem in front of you twice, once
-analytically and once with nothing but divisor sums. All covered by tests.
+analytically and once with nothing but divisor sums; *When evidence misled*, which collects
+conjectures that survived enormous numerical searches and were false anyway; the covering set behind
+Sierpiński's 78,557; and a plotter driven by a hand-written parser with no `eval`, exposing σ, φ, μ,
+τ, ω, M, π(x), li, ζ and Z as ordinary functions you can compose. All covered by tests.
 
 ## What it does not do
 
@@ -110,7 +113,7 @@ Written down rather than implied, and repeated in the app's own About page:
 
 ## Correctness
 
-`npm test` runs 146 tests. The ones that matter:
+`npm test` runs 378 tests across 21 files. The ones that matter:
 
 - **Zeta** — the first ten nontrivial zeros are located to 8 decimal places and checked against
   published values; `ζ(2)`, `ζ(4)`, `ζ(6)` and `ζ(1/2)` against their closed forms; the count of

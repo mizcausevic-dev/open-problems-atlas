@@ -80,16 +80,26 @@ self.addEventListener('fetch', (event) => {
   if (url.origin !== self.location.origin) return; // Wikipedia, Wikimedia: never cached.
 
   // Navigations: try the network so a deploy is picked up promptly, fall back
-  // to the cached shell when there is no connection.
+  // to the cached shell.
+  //
+  // The timeout is the point. fetch() rejects on a hard network failure but not
+  // on lie-fi — a captive portal, a dead tunnel, hotel wifi that accepts the
+  // connection and then never answers. Without a race, that state produced an
+  // indefinite blank page instead of the cached shell, which is precisely the
+  // situation offline support exists for.
   if (request.mode === 'navigate') {
     event.respondWith(
-      fetch(request)
-        .then((res) => {
-          const copy = res.clone();
-          caches.open(SHELL).then((c) => c.put('./index.html', copy));
+      Promise.race([
+        fetch(request).then((res) => {
+          // waitUntil, so the worker cannot be killed mid-write and leave the
+          // shell unrefreshed for the next visit.
+          event.waitUntil(caches.open(SHELL).then((c) => c.put('./index.html', res.clone())));
           return res;
-        })
-        .catch(() => caches.match('./index.html').then((r) => r ?? Response.error())),
+        }),
+        new Promise((resolve) =>
+          setTimeout(() => resolve(caches.match('./index.html').then((r) => r ?? fetch(request))), 3000),
+        ),
+      ]).catch(() => caches.match('./index.html').then((r) => r ?? Response.error())),
     );
     return;
   }
@@ -100,8 +110,7 @@ self.addEventListener('fetch', (event) => {
       const network = fetch(request)
         .then((res) => {
           if (res.ok && res.type === 'basic') {
-            const copy = res.clone();
-            caches.open(SHELL).then((c) => c.put(request, copy));
+            event.waitUntil(caches.open(SHELL).then((c) => c.put(request, res.clone())));
           }
           return res;
         })

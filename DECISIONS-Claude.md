@@ -63,7 +63,7 @@ comparison build shipped exactly that: `lastBackup: new Date().toLocaleTimeStrin
 **Reversal condition.** Real scheduled backup needs either the File System Access API with a
 persisted directory handle, or a server. The first is Chromium-only; revisit if that changes.
 
-## 6. Four dependencies, and what was refused
+## 6. Five dependencies, and what was refused
 
 **Kept:** react, react-dom, katex, lucide-react, motion.
 
@@ -71,7 +71,7 @@ persisted directory handle, or a server. The first is Chromium-only; revisit if 
 
 | Not added | Instead | Saved |
 | --- | --- | --- |
-| react-router | 60-line hash router | ~20 KB, plus server rewrite rules |
+| react-router | 159-line hash router | ~20 KB, plus server rewrite rules |
 | recharts / chart.js | Hand-rolled SVG | ~100 KB gz for one chart shape |
 | zustand / redux | One store + `useSyncExternalStore` | A dependency for a singleton |
 | jspdf / html2pdf | `window.print()` + a designed `@media print` block | ~300 KB |
@@ -103,6 +103,23 @@ would 404 on refresh wherever that config was missed.
 
 **Cost.** URLs carry a `#`. Acceptable for a tool; would reconsider for a content site where the URL
 is a ranking surface.
+
+**Revisited after deploy, and kept.** A search audit made the cost concrete: crawlers discard
+fragments, so all 591 problems are one URL, and `sitemap.xml` therefore has exactly one entry.
+
+The tempting fix — migrate to path routing and prerender 591 pages — was rejected on the data rather
+than on preference. The median problem's own statement in the source article is 68 characters; 122
+entries have no statement at all, and 27 would prerender to nothing but a title, a field and a
+status. That is 591 thin pages, which is a well-known way to make a domain rank worse, not better.
+The honest description of this dataset is *one substantial index of a Wikipedia article*, and one
+URL is what that is.
+
+What was done instead: prerender real content into the single root document, ship a truthful
+one-entry sitemap, and close the discovery gap — the site had no inbound link and no verified Search
+Console property, which made every on-page fix worth zero regardless of routing.
+
+**Reversal condition.** Ninety days of real Search Console data showing impressions against
+individual problem names. Demand first, then the routing change. Not the other way round.
 
 ## 9. Provenance is a field, not a footnote
 

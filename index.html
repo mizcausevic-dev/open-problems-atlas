@@ -12,6 +12,30 @@
     <meta name="theme-color" content="#0B0C10" />
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="icon" href="./icon.svg" type="image/svg+xml" />
+
+    <!--
+      Canonical is absolute and points at the deployed origin. Hash routing means
+      every view already resolves to this one URL once a crawler strips the
+      fragment, so there is exactly one canonical target and no variants to
+      reconcile.
+    -->
+    <link rel="canonical" href="https://openmathproblems.kineticgain.com/" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://openmathproblems.kineticgain.com/" />
+    <meta property="og:title" content="Open Problems Atlas — every unsolved problem in mathematics, tracked" />
+    <meta
+      property="og:description"
+      content="591 problems from Wikipedia's List of unsolved problems in mathematics, 478 still open. A private encrypted research journal and an interactive maths lab. No accounts, no tracking, works offline."
+    />
+    <meta property="og:site_name" content="Open Problems Atlas" />
+
+    <!--
+      summary, not summary_large_image. There is no 1200x630 card image yet, and
+      declaring summary_large_image without one produces a broken preview rather
+      than a small one. Upgrade the card at the same time as the image, not before.
+    -->
+    <meta name="twitter:card" content="summary" />
     <script>
       // Applied before first paint so there is no light-mode flash on load.
       try {
@@ -22,7 +46,22 @@
     </script>
   </head>
   <body>
-    <div id="root"></div>
+    <!--
+      The marker below is replaced at build time by scripts/build-seo.mjs with a
+      static summary generated FROM THE DATASET, plus JSON-LD carrying the same
+      numbers.
+
+      Two reasons it is generated rather than typed. First, hand-typed counts
+      drift: the moment the article is re-scraped, a literal "478 open" in this
+      file becomes a false claim with nothing to catch it. Second, the block must
+      describe what the app actually renders, or it is cloaking — deriving both
+      from the same source is what makes that guaranteed rather than intended.
+
+      React's createRoot replaces these children on mount, so a visitor never
+      sees this. It is for crawlers that do not execute JavaScript, which
+      includes most of the ones that read pages for citation.
+    -->
+    <div id="root"><!--__PRERENDER__--></div>
     <noscript>
       Open Problems Atlas is a client-side application and needs JavaScript. The underlying data is
       Wikipedia's <a href="https://en.wikipedia.org/wiki/List_of_unsolved_problems_in_mathematics">List of

@@ -7,7 +7,7 @@
   "license": "MIT",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build && node scripts/inject-precache.mjs",
+    "build": "tsc --noEmit && vite build && node scripts/inject-precache.mjs && node scripts/build-seo.mjs",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
@@ -35,5 +35,8 @@
     "typescript": "~5.7.2",
     "vite": "^6.0.0",
     "vitest": "^2.1.8"
+  },
+  "engines": {
+    "node": ">=20.19"
   }
 }
