@@ -13,7 +13,7 @@
  * new runtime request was added except the pageview call that was already here.
  */
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ArrowLeft, BarChart3, BookText, ExternalLink as ExternalIcon, FileText, FlaskConical,
   GitBranch, Loader2, Plus, RefreshCw, Star, Trash2,
@@ -31,6 +31,7 @@ import {
   Button, Chip, EmptyState, ExternalLink, FieldChip, Note, Panel, SectionTitle, StatusChip, fmt,
 } from '../components/ui';
 import { NoteBody, RichText } from '../components/Tex';
+import { MathEditor } from '../components/MathEditor';
 import { Sparkline } from '../components/Sparkline';
 
 interface Props {
@@ -596,7 +597,6 @@ function NotesPanel({ problem }: { problem: Problem }) {
   const [draft, setDraft] = useState('');
   const [draftTitle, setDraftTitle] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const textarea = useRef<HTMLTextAreaElement>(null);
 
   const editing = notes.find((n) => n.id === editingId);
   const dirty = Boolean(editing && (draft !== editing.body || draftTitle !== editing.title));
@@ -606,7 +606,8 @@ function NotesPanel({ problem }: { problem: Problem }) {
       setDraft(editing.body);
       setDraftTitle(editing.title);
       setConfirmDelete(false);
-      textarea.current?.focus();
+      // Focus is MathEditor's job now, via its autoFocus prop — it owns the
+      // textarea. A ref here would point at an element that no longer exists.
     }
   }, [editingId]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -657,15 +658,13 @@ function NotesPanel({ problem }: { problem: Problem }) {
             autoComplete="off"
             className="w-full rounded-lg border border-line bg-panel-2 px-3 py-2 text-sm font-medium text-ink-strong focus:border-accent focus:outline-none"
           />
-          <textarea
-            ref={textarea}
+          <MathEditor
             value={draft}
-            onChange={(e) => setDraft(e.target.value)}
+            onChange={setDraft}
             rows={10}
-            aria-label="Note body"
-            spellCheck={false}
+            autoFocus
+            ariaLabel="Note body"
             placeholder={'Suppose $\\zeta(s) = 0$ with $0 < \\Re(s) < 1$.\n\n$$\\zeta(s) = \\prod_p \\frac{1}{1 - p^{-s}}$$'}
-            className="w-full resize-y rounded-lg border border-line bg-panel-2 px-3 py-2 font-mono text-sm text-ink focus:border-accent focus:outline-none"
           />
           {draft.trim() && (
             <div className="rounded-lg border border-dashed border-line bg-panel-2 p-3">
