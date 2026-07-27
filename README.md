@@ -163,9 +163,26 @@ atlas never loads it) — so a code change invalidates none of the data.
 
 ## Deploying
 
+Live at **https://openmathproblems.kineticgain.com**.
+
 Static files. `npm run build` produces `dist/`, and `base: './'` means it works from a domain root,
 a subdirectory, or a file path without a rebuild. The service worker precaches the shell and the
 dataset; Wikimedia requests are deliberately never cached.
+
+Because routing is hash-based, **no server rewrite rule is needed** — every route resolves from the
+same `index.html`, so deep links cannot 404 on a misconfigured host.
+
+`public/.htaccess` carries the MIME types, cache policy and security headers. The cache split is the
+part that matters: `/assets/*` is fingerprinted and immutable for a year, while `index.html` and
+`sw.js` are `no-cache`. A long-cached service worker is how a site strands its users on an old build
+with no way to update itself.
+
+Deploy is one command from the repo root — `tar | ssh`, not `scp` of a glob, because a shell glob
+silently drops dotfiles and `.htaccess` is one:
+
+```bash
+tar -czf - -C dist . | ssh -i ~/.ssh/<key> -p 65002 <user>@<host> "cd <docroot> && tar --overwrite -xzf -"
+```
 
 ## Licence and attribution
 

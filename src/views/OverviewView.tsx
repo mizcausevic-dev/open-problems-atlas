@@ -354,7 +354,11 @@ function FieldTreemap({
                       {fmt.format(cell.value)}
                     </span>
                   ) : (
-                    <span className="sr-only">{cell.value} problems</span>
+                    // A screen reader reads this aloud, so it has to agree with
+                    // itself: the smallest cells were announcing "1 problems".
+                    <span className="sr-only">
+                      {cell.value} {cell.value === 1 ? 'problem' : 'problems'}
+                    </span>
                   )}
                 </span>
               </button>

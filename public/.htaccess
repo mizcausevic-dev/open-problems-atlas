@@ -1,0 +1,87 @@
+# Open Problems Atlas — Apache config for static hosting.
+#
+# Note what is NOT here: any rewrite rule. The app uses hash routing
+# (#/p/riemann-hypothesis), so every route is served by the same index.html and
+# the server never sees the path after the #. That is the whole reason the
+# router is hash-based, and it means this file cannot break deep links.
+
+# ---------------------------------------------------------------------------
+# MIME types
+# ---------------------------------------------------------------------------
+<IfModule mod_mime.c>
+  AddType application/manifest+json  .webmanifest
+  AddType image/svg+xml              .svg
+  AddType application/javascript     .js
+  AddType font/woff2                 .woff2
+  AddType font/woff                  .woff
+  AddType font/ttf                   .ttf
+</IfModule>
+
+# ---------------------------------------------------------------------------
+# Caching
+#
+# The split matters. Vite fingerprints everything under /assets/, so those are
+# immutable and can be cached for a year. index.html and sw.js must NOT be:
+# a long-cached service worker is how a site strands its users on a build from
+# last month with no way to update, because the stale worker keeps serving its
+# own stale cache.
+# ---------------------------------------------------------------------------
+<IfModule mod_expires.c>
+  ExpiresActive On
+  ExpiresDefault                          "access plus 1 hour"
+  ExpiresByType image/svg+xml             "access plus 1 week"
+  ExpiresByType font/woff2                "access plus 1 year"
+  ExpiresByType font/woff                 "access plus 1 year"
+  ExpiresByType font/ttf                  "access plus 1 year"
+</IfModule>
+
+<IfModule mod_headers.c>
+  # Fingerprinted build output: safe to cache indefinitely.
+  <FilesMatch "\.(js|css|woff2?|ttf)$">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </FilesMatch>
+
+  # Entry point, worker and manifest: always revalidate.
+  <FilesMatch "^(index\.html|sw\.js|manifest\.webmanifest)$">
+    Header set Cache-Control "no-cache, must-revalidate"
+  </FilesMatch>
+
+  # The service worker must be allowed to control the whole origin.
+  <FilesMatch "^sw\.js$">
+    Header set Service-Worker-Allowed "/"
+  </FilesMatch>
+
+  # ---------------------------------------------------------------------------
+  # Security headers
+  #
+  # The CSP is deliberately tight and is truthful about this app's behaviour:
+  # no third-party scripts, no analytics, no font CDN, and exactly one outbound
+  # connection — the Wikimedia pageviews API, requested only on demand. If that
+  # ever stops being true, this header breaks first, which is the point.
+  # ---------------------------------------------------------------------------
+  Header always set X-Content-Type-Options "nosniff"
+  Header always set Referrer-Policy "strict-origin-when-cross-origin"
+  Header always set X-Frame-Options "SAMEORIGIN"
+  Header always set Permissions-Policy "geolocation=(), microphone=(), camera=(), interest-cohort=()"
+  Header always set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self' https://wikimedia.org https://en.wikipedia.org; manifest-src 'self'; base-uri 'self'; form-action 'none'; frame-ancestors 'self'; object-src 'none'"
+</IfModule>
+
+# ---------------------------------------------------------------------------
+# Compression
+# ---------------------------------------------------------------------------
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/css application/javascript application/json image/svg+xml application/manifest+json
+</IfModule>
+
+# ---------------------------------------------------------------------------
+# Hygiene
+# ---------------------------------------------------------------------------
+Options -Indexes
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  # Canonical host + HTTPS. Hostinger terminates TLS upstream, so trust the
+  # forwarded header rather than %{HTTPS}, which is off behind the proxy.
+  RewriteCond %{HTTP:X-Forwarded-Proto} =http
+  RewriteRule ^(.*)$ https://%{HTTP_HOST}/$1 [R=301,L]
+</IfModule>
