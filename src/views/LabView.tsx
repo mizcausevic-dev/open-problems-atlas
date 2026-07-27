@@ -12,8 +12,9 @@
  */
 
 import { useDeferredValue, useEffect, useMemo, useState } from 'react';
-import { Activity, Binary, Link2, Check, Sigma, SquareDivide, TrendingDown } from 'lucide-react';
+import { Activity, Binary, Link2, Check, Grid3x3, Sigma, SquareDivide, TrendingDown } from 'lucide-react';
 import { EvidenceLab } from './lab/EvidenceLab';
+import { CoveringLab } from './lab/CoveringLab';
 import { orbit, stoppingTimes, VERIFIED_UP_TO } from '../lib/math/collatz';
 import {
   goldbachComet, goldbachPartitions, logarithmicIntegral, primePi, sieve, twinPrimes,
@@ -33,6 +34,7 @@ const TOOLS = [
   { id: 'zeta', label: 'Zeta on the critical line', icon: Activity },
   { id: 'robin', label: "Robin’s inequality", icon: SquareDivide },
   { id: 'evidence', label: 'When evidence misled', icon: TrendingDown },
+  { id: 'covering', label: 'Covering sets', icon: Grid3x3 },
 ] as const;
 
 type ToolId = (typeof TOOLS)[number]['id'];
@@ -41,6 +43,7 @@ interface Props {
   tool?: string;
   query: URLSearchParams;
   setQuery: (params: Record<string, string | undefined>) => void;
+  dark: boolean;
 }
 
 /**
@@ -102,7 +105,7 @@ function ShareLink() {
   );
 }
 
-export default function LabView({ tool, query, setQuery }: Props) {
+export default function LabView({ tool, query, setQuery, dark }: Props) {
   const active: ToolId = TOOLS.some((t) => t.id === tool) ? (tool as ToolId) : 'collatz';
 
   return (
@@ -143,7 +146,30 @@ export default function LabView({ tool, query, setQuery }: Props) {
       {active === 'zeta' && <ZetaLab query={query} setQuery={setQuery} />}
       {active === 'robin' && <RobinLab query={query} setQuery={setQuery} />}
       {active === 'evidence' && <EvidenceLabPanel query={query} setQuery={setQuery} />}
+      {active === 'covering' && <CoveringLabPanel query={query} setQuery={setQuery} dark={dark} />}
     </div>
+  );
+}
+
+function CoveringLabPanel({
+  query,
+  setQuery,
+  dark,
+}: {
+  query: URLSearchParams;
+  setQuery: Props['setQuery'];
+  dark: boolean;
+}) {
+  const [caseIndex, setCaseIndex] = useUrlNumber(query, setQuery, 'case', 0, (v) =>
+    Math.max(0, Math.min(1, Math.floor(v))),
+  );
+  return (
+    <CoveringLab
+      caseIndex={caseIndex}
+      setCaseIndex={setCaseIndex}
+      dark={dark}
+      share={<ShareLink />}
+    />
   );
 }
 

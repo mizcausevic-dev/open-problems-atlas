@@ -38,6 +38,8 @@ export const LAB_PROBLEM_IDS: Record<string, string[]> = {
   'goldbach-conjecture': ['primes'],
   'twin-prime': ['primes'],
   'landau-s-problems': ['primes'],
+  'sierpinski-number': ['covering'],
+  'riesel-number': ['covering'],
 };
 
 const RECENT_YEARS = 6;

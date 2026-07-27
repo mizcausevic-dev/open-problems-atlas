@@ -6,11 +6,11 @@
  * invisible and undiscoverable on the device where screen space is scarcest.
  */
 
-import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import {
   BookOpen, Compass, FlaskConical, GaugeCircle, History, Info, LayoutGrid, Menu, Moon, Sun,
-  WifiOff, X,
+  Search, WifiOff, X,
 } from 'lucide-react';
 
 import raw from './data/problems.generated.json';
@@ -19,6 +19,9 @@ import { href, useLocation, type Route } from './lib/router';
 import { deriveCounts } from './lib/counts';
 import { atlasStateToParams, DEFAULT_ATLAS_STATE } from './lib/search';
 import { store } from './lib/storage';
+import { buildCommands } from './lib/palette';
+import { COLLECTIONS, randomProblem } from './lib/collections';
+import { CommandPalette, usePaletteHotkey } from './components/CommandPalette';
 import { useDarkMode, useOnline, fmt } from './components/ui';
 
 import OverviewView from './views/OverviewView';
@@ -32,6 +35,16 @@ import JournalView from './views/JournalView';
 import AboutView from './views/AboutView';
 
 const dataset = raw as unknown as Dataset;
+
+/** Kept in step with LabView's TOOLS by a test, so the palette cannot list a dead tab. */
+export const LAB_TOOLS = [
+  { id: 'collatz', label: 'Collatz orbits' },
+  { id: 'primes', label: 'Goldbach and primes' },
+  { id: 'zeta', label: 'Zeta on the critical line' },
+  { id: 'robin', label: "Robin's inequality" },
+  { id: 'evidence', label: 'When evidence misled' },
+  { id: 'covering', label: 'Covering sets' },
+] as const;
 
 const NAV: { route: Route; label: string; icon: typeof Compass }[] = [
   { route: { name: 'overview' }, label: 'Overview', icon: LayoutGrid },
@@ -48,6 +61,7 @@ export default function App() {
   const [dark, toggleDark] = useDarkMode();
   const online = useOnline();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
   const reduceMotion = useReducedMotion();
 
   // The store is imperative; this re-renders the tree whenever it changes.
@@ -85,6 +99,63 @@ export default function App() {
   const openField = (field: string) =>
     navigate({ name: 'atlas' }, atlasStateToParams({ ...DEFAULT_ATLAS_STATE, fields: [field] }));
 
+  const openPalette = useCallback(() => setPaletteOpen(true), []);
+  usePaletteHotkey(openPalette);
+
+  const commands = useMemo(
+    () =>
+      buildCommands(
+        problems,
+        [
+          ...NAV.map((n) => ({
+            id: `view:${n.label}`,
+            kind: 'view' as const,
+            title: n.label,
+            href: href(n.route),
+            keywords: n.label === 'Atlas' ? ['browse', 'search', 'filter'] : undefined,
+          })),
+          ...LAB_TOOLS.map((t) => ({
+            id: `lab:${t.id}`,
+            kind: 'lab' as const,
+            title: t.label,
+            hint: 'Lab',
+            href: href({ name: 'lab', tool: t.id }),
+          })),
+          ...COLLECTIONS.map((c) => ({
+            id: `collection:${c.slug}`,
+            kind: 'collection' as const,
+            title: c.title,
+            hint: 'Collection',
+            href: href({ name: 'collection', slug: c.slug }),
+          })),
+        ],
+        [
+          {
+            id: 'action:random',
+            title: 'Open a random problem',
+            keywords: ['surprise', 'shuffle', 'lucky'],
+            run: () => {
+              const p = randomProblem(problems);
+              if (p) navigate({ name: 'problem', id: p.id });
+            },
+          },
+          {
+            id: 'action:theme',
+            title: dark ? 'Switch to the light theme' : 'Switch to the dark theme',
+            keywords: ['dark', 'light', 'contrast', 'appearance'],
+            run: toggleDark,
+          },
+          {
+            id: 'action:print',
+            title: 'Print or save as PDF',
+            keywords: ['export', 'pdf'],
+            run: () => window.print(),
+          },
+        ],
+      ),
+    [problems, dark, toggleDark, navigate],
+  );
+
   return (
     <div className="min-h-dvh bg-bg">
       <a
@@ -101,7 +172,11 @@ export default function App() {
         <div className="edge-safe mx-auto flex max-w-[1400px] items-center gap-3 py-3">
           <a
             href={href({ name: 'overview' })}
-            className="flex min-w-0 shrink-0 items-center gap-2.5"
+            // Allowed to shrink, not shrink-0. Adding the palette button to the
+            // right-hand group pushed the header 4px past the viewport at very
+            // narrow widths, because a shrink-0 wordmark refuses to give way and
+            // something has to.
+            className="flex min-w-0 flex-1 items-center gap-2.5 xl:flex-none"
             aria-label="Open Problems Atlas, home"
           >
             <svg viewBox="0 0 64 64" className="size-8 shrink-0" aria-hidden>
@@ -140,6 +215,29 @@ export default function App() {
           </nav>
 
           <div className="ml-auto flex items-center gap-1 xl:ml-2">
+            <button
+              type="button"
+              onClick={openPalette}
+              // The hotkey is invisible unless something advertises it.
+              className="mr-1 hidden items-center gap-2 rounded-lg border border-line bg-panel px-2.5 py-1.5 text-xs text-ink-dim transition-colors hover:border-accent/50 hover:text-ink-strong sm:flex"
+              aria-label="Open the command palette"
+            >
+              <Search className="size-3.5" aria-hidden />
+              <span>Jump to…</span>
+              <kbd className="rounded border border-line px-1 font-mono text-[10px]">
+                {navigator.platform.toLowerCase().includes('mac') ? '⌘' : 'Ctrl'}K
+              </kbd>
+            </button>
+
+            <button
+              type="button"
+              onClick={openPalette}
+              className="rounded-lg p-2 text-ink-dim transition-colors hover:bg-panel-2 hover:text-ink-strong sm:hidden"
+              aria-label="Open the command palette"
+            >
+              <Search className="size-[1.125rem]" aria-hidden />
+            </button>
+
             {!online && (
               <span
                 className="flex items-center gap-1.5 rounded-full border border-open/40 bg-open-soft px-2 py-1 text-[11px] font-medium text-open"
@@ -206,6 +304,8 @@ export default function App() {
         )}
       </AnimatePresence>
 
+      <CommandPalette commands={commands} open={paletteOpen} onClose={() => setPaletteOpen(false)} />
+
       <main id="main" className="edge-safe mx-auto max-w-[1400px] py-6 sm:py-8">
         {route.name === 'overview' && (
           <OverviewView dataset={dataset} dark={dark} onOpen={openProblem} onField={openField} />
@@ -236,7 +336,9 @@ export default function App() {
         {route.name === 'timeline' && (
           <TimelineView dataset={dataset} dark={dark} onOpen={openProblem} />
         )}
-        {route.name === 'lab' && <LabView tool={route.tool} query={query} setQuery={setQuery} />}
+        {route.name === 'lab' && (
+          <LabView tool={route.tool} query={query} setQuery={setQuery} dark={dark} />
+        )}
         {route.name === 'journal' && <JournalView dataset={dataset} onOpen={openProblem} />}
         {route.name === 'about' && <AboutView dataset={dataset} />}
       </main>

@@ -24,7 +24,7 @@ describe('lab problem ids', () => {
   });
 
   it('names lab tools that exist', () => {
-    const tools = new Set(['collatz', 'primes', 'zeta', 'robin', 'evidence']);
+    const tools = new Set(['collatz', 'primes', 'zeta', 'robin', 'evidence', 'covering']);
     for (const [id, list] of Object.entries(LAB_PROBLEM_IDS)) {
       for (const tool of list) expect(tools.has(tool), `${id} -> ${tool}`).toBe(true);
     }
