@@ -12,9 +12,13 @@
  */
 
 import { useDeferredValue, useEffect, useMemo, useState } from 'react';
-import { Activity, Binary, Link2, Check, Grid3x3, Sigma, SquareDivide, TrendingDown } from 'lucide-react';
+import {
+  Activity, Binary, Link2, Check, Grid3x3, LineChart, Sigma, SquareDivide, TrendingDown,
+} from 'lucide-react';
 import { EvidenceLab } from './lab/EvidenceLab';
 import { CoveringLab } from './lab/CoveringLab';
+import { PlotLab } from './lab/PlotLab';
+import { PLOT_PRESETS } from '../lib/math/mathContext';
 import { orbit, stoppingTimes, VERIFIED_UP_TO } from '../lib/math/collatz';
 import {
   goldbachComet, goldbachPartitions, logarithmicIntegral, primePi, sieve, twinPrimes,
@@ -35,6 +39,7 @@ const TOOLS = [
   { id: 'robin', label: "Robin’s inequality", icon: SquareDivide },
   { id: 'evidence', label: 'When evidence misled', icon: TrendingDown },
   { id: 'covering', label: 'Covering sets', icon: Grid3x3 },
+  { id: 'plot', label: 'Plot an expression', icon: LineChart },
 ] as const;
 
 type ToolId = (typeof TOOLS)[number]['id'];
@@ -147,7 +152,36 @@ export default function LabView({ tool, query, setQuery, dark }: Props) {
       {active === 'robin' && <RobinLab query={query} setQuery={setQuery} />}
       {active === 'evidence' && <EvidenceLabPanel query={query} setQuery={setQuery} />}
       {active === 'covering' && <CoveringLabPanel query={query} setQuery={setQuery} dark={dark} />}
+      {active === 'plot' && <PlotLabPanel query={query} setQuery={setQuery} />}
     </div>
+  );
+}
+
+/**
+ * The plotter's state is a string plus a range, so it does not fit useUrlNumber.
+ * It writes straight through to the query, which is what makes a plotted
+ * expression a link someone can send.
+ */
+function PlotLabPanel({ query, setQuery }: { query: URLSearchParams; setQuery: Props['setQuery'] }) {
+  const expression = query.get('e') ?? PLOT_PRESETS[0]!.expression;
+  const from = Number(query.get('from') ?? PLOT_PRESETS[0]!.from);
+  const to = Number(query.get('to') ?? PLOT_PRESETS[0]!.to);
+  const integerOnly = (query.get('int') ?? (PLOT_PRESETS[0]!.integerOnly ? '1' : '0')) === '1';
+
+  const write = (patch: Record<string, string | undefined>) =>
+    setQuery({ ...Object.fromEntries(query), ...patch });
+
+  return (
+    <PlotLab
+      expression={expression}
+      setExpression={(e) => write({ e })}
+      from={Number.isFinite(from) ? from : 1}
+      to={Number.isFinite(to) ? to : 100}
+      setRange={(f, t) => write({ from: String(f), to: String(t) })}
+      integerOnly={integerOnly}
+      setIntegerOnly={(v) => write({ int: v ? '1' : '0' })}
+      share={<ShareLink />}
+    />
   );
 }
 

@@ -16,7 +16,21 @@
  * straight through and never cached.
  */
 
-const VERSION = 'opa-v1';
+/**
+ * Cache version.
+ *
+ * The placeholder below is replaced at build time by scripts/inject-precache.mjs
+ * with a hash of the built asset filenames, so a build that changes any asset
+ * automatically gets a new cache name and the activate handler purges the old one.
+ *
+ * This used to be a hand-maintained constant, and the failure it caused is the
+ * reason it is not one any more: a deploy shipped with the version unchanged,
+ * `activate` therefore deleted nothing, and every returning visitor kept being
+ * served the previous build from cache — including after the old files had been
+ * removed from the server. The site looked fine and was simply out of date, which
+ * is the hardest kind of stale to notice.
+ */
+const VERSION = '__SW_VERSION__';
 const SHELL = `${VERSION}-shell`;
 
 /**

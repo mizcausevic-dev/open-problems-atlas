@@ -44,6 +44,7 @@ export const LAB_TOOLS = [
   { id: 'robin', label: "Robin's inequality" },
   { id: 'evidence', label: 'When evidence misled' },
   { id: 'covering', label: 'Covering sets' },
+  { id: 'plot', label: 'Plot an expression' },
 ] as const;
 
 const NAV: { route: Route; label: string; icon: typeof Compass }[] = [
@@ -380,3 +381,4 @@ export default function App() {
     </div>
   );
 }
+
