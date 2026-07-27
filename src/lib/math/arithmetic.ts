@@ -148,12 +148,31 @@ export function mertensSeries(
   const step = Math.max(1, Math.ceil(capped / maxPoints));
   const out: { x: number; m: number; ratio: number }[] = [];
 
+  // Downsample by keeping each bucket's most extreme value, not its last one.
+  //
+  // M(x) is a jagged walk and the whole point of the chart is how far it strays
+  // from zero. Taking every k-th value silently drops the peaks between samples,
+  // so a reader measures a maximum excursion off the chart that is smaller than
+  // the real one — and the caption underneath is about exactly that quantity.
   let running = 0;
+  let best: { x: number; m: number } | null = null;
+
   for (let x = 1; x <= capped; x++) {
     running += table.mu[x]!;
+    if (!best || Math.abs(running) > Math.abs(best.m)) best = { x, m: running };
+
     if (x % step === 0 || x === capped) {
-      out.push({ x, m: running, ratio: running / Math.sqrt(x) });
+      const point = best ?? { x, m: running };
+      out.push({ x: point.x, m: point.m, ratio: point.m / Math.sqrt(point.x) });
+      best = null;
     }
+  }
+
+  // The endpoint is a fact readers rely on (“M(10^6) = 212”), so it is always
+  // present even when the bucket's extreme lies earlier.
+  const last = out[out.length - 1];
+  if (!last || last.x !== capped) {
+    out.push({ x: capped, m: running, ratio: running / Math.sqrt(capped) });
   }
   return out;
 }
@@ -188,22 +207,81 @@ export function primeRace(
   const step = Math.max(1, Math.ceil(capped / maxPoints));
   const out: { x: number; countA: number; countB: number; lead: number }[] = [];
 
+  // Keep each bucket's MINIMUM lead, not the value that happens to land on the
+  // sample boundary.
+  //
+  // Lead changes are brief — the 4k+1 class takes the lead at 26,861 and loses
+  // it again quickly — so sampling on a fixed stride steps straight over them.
+  // The chart then showed the 4k+3 class leading at 100% of points while the
+  // panel beside it reported the first lead change at 26,861. Taking the
+  // minimum makes a crossover impossible to hide: if the lead ever went to zero
+  // or below inside a bucket, that is the point that gets drawn.
   let countA = 0;
   let countB = 0;
-  let next = step;
+  let bucketEnd = step;
+  let worst: { x: number; countA: number; countB: number; lead: number } | null = null;
+
+  const consider = (x: number) => {
+    const lead = countA - countB;
+    if (!worst || lead < worst.lead) worst = { x, countA, countB, lead };
+  };
 
   for (const p of table.primes) {
     if (p > capped) break;
     if (p % q === a) countA++;
     else if (p % q === b) countB++;
+    consider(p);
 
-    while (p >= next && next <= capped) {
-      out.push({ x: next, countA, countB, lead: countA - countB });
-      next += step;
+    while (p >= bucketEnd && bucketEnd <= capped) {
+      if (worst) out.push(worst);
+      worst = null;
+      bucketEnd += step;
     }
   }
-  out.push({ x: capped, countA, countB, lead: countA - countB });
+
+  if (worst) out.push(worst);
+  const last = out[out.length - 1];
+  if (!last || last.x !== capped) {
+    out.push({ x: capped, countA, countB, lead: countA - countB });
+  }
   return out;
+}
+
+/**
+ * The exact fraction of primes at which class `a` is strictly ahead.
+ *
+ * Computed over every prime, not over the sampled chart points. Deriving this
+ * from the downsampled series is how the UI came to claim the 4k+3 class leads
+ * 100% of the time on a range that demonstrably contains a lead change.
+ */
+export function leadFraction(
+  limit: number,
+  q: number,
+  a: number,
+  b: number,
+  table: ArithmeticTable,
+): { ahead: number; behind: number; tied: number; fractionAhead: number } {
+  const capped = Math.min(limit, table.limit);
+  let countA = 0;
+  let countB = 0;
+  let ahead = 0;
+  let behind = 0;
+  let tied = 0;
+
+  for (const p of table.primes) {
+    if (p > capped) break;
+    if (p % q === a) countA++;
+    else if (p % q === b) countB++;
+    else continue; // p = 2 in the mod-4 race belongs to neither class.
+
+    const lead = countA - countB;
+    if (lead > 0) ahead++;
+    else if (lead < 0) behind++;
+    else tied++;
+  }
+
+  const total = ahead + behind + tied;
+  return { ahead, behind, tied, fractionAhead: total ? ahead / total : 0 };
 }
 
 /**

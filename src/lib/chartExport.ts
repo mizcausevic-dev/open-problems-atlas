@@ -111,9 +111,34 @@ export function serialiseSvg(svg: SVGSVGElement, options: SerialiseOptions = {})
     clone.insertBefore(t, clone.firstChild);
   }
 
-  const body = new XMLSerializer().serializeToString(clone);
+  const body = resolveRemainingVars(new XMLSerializer().serializeToString(clone));
   const comment = options.provenance ? `<!-- ${options.provenance.replace(/--/g, '- -')} -->\n` : '';
   return `<?xml version="1.0" encoding="UTF-8"?>\n${comment}${body}`;
+}
+
+/**
+ * Substitute any `var(--x)` still present in the serialised output.
+ *
+ * inlineStyles resolves the properties it enumerates, but an element can also
+ * carry an inline `style` attribute, which cloneNode copies verbatim and
+ * getComputedStyle never rewrites. The axis labels do exactly that —
+ * `style={{ font: '10px var(--font-mono)' }}` — so three var() references were
+ * surviving into every exported file, where they resolve to nothing because the
+ * stylesheet that defines them is not there.
+ *
+ * Single-level substitution: a custom property whose own value contains another
+ * var() is not chased. None in this app do, and a fallback is honoured when
+ * present.
+ */
+function resolveRemainingVars(svgText: string): string {
+  const root = getComputedStyle(document.documentElement);
+  return svgText.replace(
+    /var\(\s*(--[\w-]+)\s*(?:,\s*([^()]*?))?\s*\)/g,
+    (_match, name: string, fallback?: string) => {
+      const resolved = root.getPropertyValue(name).trim();
+      return resolved || fallback?.trim() || 'currentColor';
+    },
+  );
 }
 
 /** Resolve a CSS custom property to a concrete colour for use in an exported file. */

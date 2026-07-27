@@ -12,7 +12,8 @@
  */
 
 import { useDeferredValue, useEffect, useMemo, useState } from 'react';
-import { Activity, Binary, Link2, Check, Sigma, SquareDivide } from 'lucide-react';
+import { Activity, Binary, Link2, Check, Sigma, SquareDivide, TrendingDown } from 'lucide-react';
+import { EvidenceLab } from './lab/EvidenceLab';
 import { orbit, stoppingTimes, VERIFIED_UP_TO } from '../lib/math/collatz';
 import {
   goldbachComet, goldbachPartitions, logarithmicIntegral, primePi, sieve, twinPrimes,
@@ -31,6 +32,7 @@ const TOOLS = [
   { id: 'primes', label: 'Goldbach & primes', icon: Sigma },
   { id: 'zeta', label: 'Zeta on the critical line', icon: Activity },
   { id: 'robin', label: "Robin’s inequality", icon: SquareDivide },
+  { id: 'evidence', label: 'When evidence misled', icon: TrendingDown },
 ] as const;
 
 type ToolId = (typeof TOOLS)[number]['id'];
@@ -110,9 +112,11 @@ export default function LabView({ tool, query, setQuery }: Props) {
           Run the mathematics yourself
         </h1>
         <p className="mt-2 text-sm leading-relaxed text-ink-dim">
-          Four open problems you can compute against directly. Everything below is calculated in this
-          page from the definition, at the resolution you choose. Every input is in the address bar,
-          so a particular computation is a link you can send.
+          {/* Derived from TOOLS so the sentence cannot drift out of step with
+              the tab strip beside it, the way "four" did when a fifth arrived. */}
+          {TOOLS.length} tools computing open problems directly. Everything below is calculated in
+          this page from the definition, at the resolution you choose. Every input is in the address
+          bar, so a particular computation is a link you can send.
         </p>
       </header>
 
@@ -138,8 +142,17 @@ export default function LabView({ tool, query, setQuery }: Props) {
       {active === 'primes' && <PrimesLab query={query} setQuery={setQuery} />}
       {active === 'zeta' && <ZetaLab query={query} setQuery={setQuery} />}
       {active === 'robin' && <RobinLab query={query} setQuery={setQuery} />}
+      {active === 'evidence' && <EvidenceLabPanel query={query} setQuery={setQuery} />}
     </div>
   );
+}
+
+/** Thin wrapper so the evidence panel gets the same URL-state and share plumbing. */
+function EvidenceLabPanel({ query, setQuery }: { query: URLSearchParams; setQuery: Props['setQuery'] }) {
+  const [limit, setLimit] = useUrlNumber(query, setQuery, 'limit', 500_000, (v) =>
+    Math.max(50_000, Math.min(1_000_000, Math.round(v / 50_000) * 50_000)),
+  );
+  return <EvidenceLab limit={limit} setLimit={setLimit} share={<ShareLink />} />;
 }
 
 // ---------------------------------------------------------------------------

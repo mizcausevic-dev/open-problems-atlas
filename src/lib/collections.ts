@@ -33,7 +33,7 @@ export interface Collection {
  */
 export const LAB_PROBLEM_IDS: Record<string, string[]> = {
   'collatz-conjecture': ['collatz'],
-  'riemann-hypothesis': ['zeta', 'robin'],
+  'riemann-hypothesis': ['zeta', 'robin', 'evidence'],
   'goldbach-s-conjecture': ['primes'],
   'goldbach-conjecture': ['primes'],
   'twin-prime': ['primes'],

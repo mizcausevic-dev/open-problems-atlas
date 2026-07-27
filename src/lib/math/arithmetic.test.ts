@@ -4,6 +4,7 @@ import {
   mertens,
   mertensSeries,
   primeRace,
+  leadFraction,
   firstLeadChange,
   partitions,
   largestExactPartitionIndex,
@@ -140,6 +141,33 @@ describe('Mertens function', () => {
     expect(series.length).toBeLessThanOrEqual(502);
   });
 
+  it('keeps the extreme excursions when downsampling', () => {
+    // Regression: taking every k-th value dropped the peaks between samples, so
+    // the chart understated the maximum excursion — the exact quantity its
+    // caption is about. Compare the sampled maximum against the true one.
+    const limit = 200_000;
+
+    let running = 0;
+    let trueMax = 0;
+    for (let x = 1; x <= limit; x++) {
+      running += T.mu[x]!;
+      trueMax = Math.max(trueMax, Math.abs(running));
+    }
+
+    const sampled = mertensSeries(limit, T, 400);
+    const sampledMax = Math.max(...sampled.map((p) => Math.abs(p.m)));
+
+    expect(sampledMax).toBe(trueMax);
+    expect(sampled.length).toBeLessThanOrEqual(402);
+  });
+
+  it('reports x values that really correspond to their M value', () => {
+    // Downsampling must not pair one bucket's x with another's M.
+    for (const { x, m } of mertensSeries(20_000, T, 120)) {
+      expect(m, `M(${x})`).toBe(mertens(x, T));
+    }
+  });
+
   it('stays inside the sqrt(x) bound across the computable range', () => {
     // The Mertens conjecture. It holds here, held for every value anyone could
     // check, and is still false — Odlyzko and te Riele disproved it in 1985.
@@ -155,10 +183,37 @@ describe('prime races', () => {
     expect(firstLeadChange(1_000_000, 4, 3, 1, T)).toBe(26_861);
   });
 
-  it('shows the 4k+3 class ahead for most of the range', () => {
-    const race = primeRace(100_000, 4, 3, 1, T, 500);
-    const ahead = race.filter((r) => r.lead > 0).length;
-    expect(ahead / race.length).toBeGreaterThan(0.9);
+  it('shows the 4k+3 class ahead for most, but not all, of the range', () => {
+    const { fractionAhead, behind } = leadFraction(100_000, 4, 3, 1, T);
+    expect(fractionAhead).toBeGreaterThan(0.9);
+    // Not all: the crossover at 26,861 is inside this range, so a claim of
+    // 100% would contradict the crossover the same panel reports.
+    expect(fractionAhead).toBeLessThan(1);
+    expect(behind).toBeGreaterThan(0);
+  });
+
+  it('never hides a lead change in the downsampled series', () => {
+    // Regression: sampling on a fixed stride stepped over the brief window
+    // where the 4k+1 class leads, so the chart showed the 4k+3 class ahead at
+    // 100% of points on a range containing a documented crossover.
+    const race = primeRace(100_000, 4, 3, 1, T, 400);
+    expect(race.some((r) => r.lead <= 0)).toBe(true);
+    expect(race.length).toBeLessThanOrEqual(402);
+  });
+
+  it('reports counts that really belong to their x', () => {
+    for (const point of primeRace(50_000, 4, 3, 1, T, 60)) {
+      let a = 0;
+      let b = 0;
+      for (const p of T.primes) {
+        if (p > point.x) break;
+        if (p % 4 === 3) a++;
+        else if (p % 4 === 1) b++;
+      }
+      expect(point.countA, `pi(${point.x}; 4, 3)`).toBe(a);
+      expect(point.countB, `pi(${point.x}; 4, 1)`).toBe(b);
+      expect(point.lead).toBe(a - b);
+    }
   });
 
   it('counts each prime into exactly one class', () => {

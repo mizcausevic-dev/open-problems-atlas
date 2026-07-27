@@ -54,23 +54,55 @@ export function parseBackup(text: string): UserData {
 // ---------------------------------------------------------------------------
 
 /**
+ * Placeholder standing in for a backslash while the other escapes run.
+ * A control character, so it cannot occur in a note.
+ */
+const BACKSLASH_SLOT = String.fromCharCode(1);
+
+/**
  * Escape text for LaTeX. Note the deliberate exception: `$` is left alone,
  * because the note body is written in LaTeX-flavoured markdown where $...$ is
  * how the user writes maths. Escaping it would break every formula they typed.
+ *
+ * The backslash is set aside first and substituted last. Replacing it up front
+ * with `\textbackslash{}` inserts two braces, which the very next rule then
+ * escapes into `\{\}` — so `C:\Users` came out as `C:\textbackslash\{\}Users`.
+ * Any prose containing a backslash exported broken.
  */
 function tex(s: string): string {
   return s
-    .replace(/\\/g, '\\textbackslash{}')
+    .replace(/\\/g, BACKSLASH_SLOT)
     .replace(/([&%#_{}])/g, '\\$1')
     .replace(/~/g, '\\textasciitilde{}')
-    .replace(/\^/g, '\\textasciicircum{}');
+    .replace(/\^/g, '\\textasciicircum{}')
+    // Last: the replacement's own braces must not be escaped, and neither must
+    // those introduced by the two rules above.
+    .replace(new RegExp(BACKSLASH_SLOT, 'g'), '\\textbackslash{}');
 }
 
-/** Same, but leaves $...$ spans untouched so inline maths survives. */
+/**
+ * Escape prose while leaving maths untouched.
+ *
+ * Display maths is split off BEFORE inline maths. Splitting on a single `$`
+ * first matches the empty span between the two dollars of `$$...$$`, leaving the
+ * equation body classified as prose — so the app's own suggested example,
+ * `$$\zeta(s) = \prod_p \frac{1}{1 - p^{-s}}$$`, exported as
+ * `$$\textbackslash\{\}zeta(s) = ...$$` and would not compile.
+ */
 function texKeepMath(s: string): string {
+  const isSpan = (part: string, delim: string) =>
+    part.startsWith(delim) && part.endsWith(delim) && part.length > delim.length * 2 - 1;
+
   return s
-    .split(/(\$[^$]*\$)/g)
-    .map((part) => (part.startsWith('$') && part.endsWith('$') && part.length > 1 ? part : tex(part)))
+    .split(/(\$\$[\s\S]*?\$\$)/g)
+    .map((block) =>
+      isSpan(block, '$$')
+        ? block
+        : block
+            .split(/(\$[^$]*\$)/g)
+            .map((part) => (isSpan(part, '$') ? part : tex(part)))
+            .join(''),
+    )
     .join('');
 }
 
