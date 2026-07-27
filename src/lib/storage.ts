@@ -16,6 +16,10 @@
  */
 
 import type { JournalEntry, TrackedProblem, TrackState, UserData } from '../types';
+import type { Attachment } from './attachments';
+import {
+  attachmentChars, totalAttachmentChars, MAX_ATTACHMENTS_PER_ENTRY, MAX_TOTAL_ATTACHMENT_CHARS,
+} from './attachments';
 import type { Envelope } from './crypto';
 import { encrypt, decrypt } from './crypto';
 
@@ -104,20 +108,63 @@ class Store {
 
   // -- persistence --------------------------------------------------------
 
+  /**
+   * Last save failure, or null. Read by the UI so a failed write is visible.
+   *
+   * This used to be a console.warn and nothing else, which was survivable while
+   * the only content was text. Attachments changed that: images are the reason a
+   * browser actually hits its storage quota, and a silent failure means the user
+   * writes a note, sees it on screen, and loses it on reload with no indication
+   * anything went wrong. A save that did not happen has to be visible.
+   */
+  private saveError: string | null = null;
+
+  get lastSaveError(): string | null {
+    return this.saveError;
+  }
+
+  clearSaveError() {
+    if (this.saveError === null) return;
+    this.saveError = null;
+    this.changed();
+  }
+
+  private failSave(err: unknown) {
+    const quota =
+      err instanceof DOMException &&
+      (err.name === 'QuotaExceededError' || err.name === 'NS_ERROR_DOM_QUOTA_REACHED');
+
+    this.saveError = quota
+      ? 'Out of browser storage. Recent changes are not saved. Remove an attachment or delete an old note, then edit again to retry.'
+      : 'Could not save to this browser. Recent changes are not saved.';
+
+    console.warn('[storage] save failed', err);
+    this.changed();
+  }
+
   private persist() {
     this.data.updatedAt = nowISO();
-    try {
-      if (this.mode === 'vault') {
-        if (!this.passphrase) return; // locked: nothing to write
-        void encrypt(JSON.stringify(this.data), this.passphrase).then((env) => {
+
+    if (this.mode === 'vault') {
+      if (!this.passphrase) return; // locked: nothing to write
+      // The write is inside the promise, so its failure must be caught inside
+      // the promise too. A try/catch around this call catches nothing — that was
+      // the original bug, and it made vault-mode quota errors completely silent.
+      void encrypt(JSON.stringify(this.data), this.passphrase)
+        .then((env) => {
           localStorage.setItem(KEY_VAULT, JSON.stringify(env));
-        });
-      } else {
+          this.clearSaveError();
+        })
+        .catch((err) => this.failSave(err));
+    } else {
+      try {
         localStorage.setItem(KEY_DATA, JSON.stringify(this.data));
+        this.clearSaveError();
+      } catch (err) {
+        this.failSave(err);
       }
-    } catch (err) {
-      console.warn('Could not save. Storage may be full or blocked.', err);
     }
+
     this.changed();
   }
 
@@ -239,6 +286,69 @@ class Store {
 
   deleteEntry(id: string) {
     this.data.journal = this.data.journal.filter((e) => e.id !== id);
+    this.persist();
+  }
+
+  // -- attachments --------------------------------------------------------
+
+  /**
+   * Budget checks live here rather than in the component.
+   *
+   * The limit is a property of the store's medium — one localStorage quota
+   * shared by every note — so a per-editor check would be counting the wrong
+   * thing. An editor only knows about the note in front of it, and eleven notes
+   * each individually under the limit still exhaust the quota together.
+   */
+  attachmentUsage(): { used: number; total: number; fraction: number } {
+    const used = totalAttachmentChars(this.data.journal);
+    return { used, total: MAX_TOTAL_ATTACHMENT_CHARS, fraction: used / MAX_TOTAL_ATTACHMENT_CHARS };
+  }
+
+  addAttachment(entryId: string, attachment: Attachment): { ok: true } | { ok: false; reason: string } {
+    const entry = this.data.journal.find((e) => e.id === entryId);
+    if (!entry) return { ok: false, reason: 'That note no longer exists.' };
+
+    const existing = entry.attachments ?? [];
+    if (existing.length >= MAX_ATTACHMENTS_PER_ENTRY) {
+      return {
+        ok: false,
+        reason: `A note holds at most ${MAX_ATTACHMENTS_PER_ENTRY} attachments. Start a second note for the rest.`,
+      };
+    }
+
+    const { used, total } = this.attachmentUsage();
+    if (used + attachmentChars(attachment) > total) {
+      return {
+        ok: false,
+        reason:
+          'This would exceed the space the browser gives this site. Remove an attachment from another note first.',
+      };
+    }
+
+    entry.attachments = [...existing, attachment];
+    entry.updatedAt = nowISO();
+    this.persist();
+
+    // persist() reports quota failures asynchronously in vault mode, so a true
+    // return here means "accepted", not "written". lastSaveError is the source
+    // of truth for whether it actually landed, and the editor surfaces it.
+    return { ok: true };
+  }
+
+  updateAttachment(entryId: string, attachmentId: string, patch: { caption?: string }) {
+    const entry = this.data.journal.find((e) => e.id === entryId);
+    const att = entry?.attachments?.find((a) => a.id === attachmentId);
+    if (!entry || !att) return;
+    if (patch.caption !== undefined) att.caption = patch.caption;
+    entry.updatedAt = nowISO();
+    this.persist();
+  }
+
+  removeAttachment(entryId: string, attachmentId: string) {
+    const entry = this.data.journal.find((e) => e.id === entryId);
+    if (!entry?.attachments) return;
+    entry.attachments = entry.attachments.filter((a) => a.id !== attachmentId);
+    entry.updatedAt = nowISO();
     this.persist();
   }
 

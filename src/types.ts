@@ -12,6 +12,9 @@
  *    object, so the UI can always say which is which.
  */
 
+import type { Attachment } from './lib/attachments';
+export type { Attachment };
+
 export type ProblemStatus = 'open' | 'solved' | 'partially-solved';
 
 /** Where a problem's field classification came from. Surfaced in the UI. */
@@ -133,6 +136,14 @@ export interface JournalEntry {
   updatedAt: string;
   /** Prior bodies, newest first. Capped; see storage.ts MAX_REVISIONS. */
   revisions: { body: string; savedAt: string }[];
+  /**
+   * Images and video references belonging to this note.
+   *
+   * Optional because every entry written before attachments existed lacks the
+   * field, and the store must keep reading those without a migration step.
+   * Treat `undefined` and `[]` as the same thing everywhere.
+   */
+  attachments?: Attachment[];
 }
 
 /** The whole of the user's data. This is what the vault encrypts and export writes. */

@@ -160,6 +160,23 @@ export function toLaTeX(data: UserData, problems: Problem[]): string {
       lines.push(`\\paragraph{${tex(entry.title)}}`);
       lines.push(`\\small Last edited ${entry.updatedAt.slice(0, 10)}.\\normalsize`, '');
       lines.push(texKeepMath(entry.body), '');
+
+      // LaTeX cannot carry an inline data URI, so images cannot travel in this
+      // format. They are listed rather than dropped: an export that silently
+      // loses part of a note is worse than one that says what it left behind.
+      // The JSON backup is lossless and is the format for keeping everything.
+      const attachments = entry.attachments ?? [];
+      if (attachments.length) {
+        lines.push('\\begin{itemize}');
+        for (const a of attachments) {
+          lines.push(
+            a.kind === 'video'
+              ? `\\item Video: ${tex(a.caption || 'untitled')} --- \\url{${a.url ?? ''}}`
+              : `\\item Image not included in this format: ${tex(a.caption || 'untitled')}`,
+          );
+        }
+        lines.push('\\end{itemize}', '');
+      }
     }
   }
 
@@ -197,6 +214,14 @@ export function toMarkdown(data: UserData, problems: Problem[]): string {
     const p = byId.get(entry.problemId);
     out.push(`## ${entry.title}`, '', `**Problem:** ${p?.title ?? entry.problemId}  `);
     out.push(`**Last edited:** ${entry.updatedAt.slice(0, 10)}`, '', entry.body, '');
+
+    // Markdown CAN carry the image, as a data URI, and most viewers render it.
+    // That makes this export self-contained, which is the point of choosing it
+    // over the JSON backup for sharing a note with someone.
+    for (const a of entry.attachments ?? []) {
+      if (a.kind === 'image' && a.data) out.push(`![${a.caption}](${a.data})`, '');
+      if (a.kind === 'video') out.push(`[${a.caption || 'Video'}](${a.url})`, '');
+    }
   }
   return out.join('\n');
 }

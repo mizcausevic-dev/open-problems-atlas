@@ -269,13 +269,28 @@ export default function AboutView({ dataset }: { dataset: Dataset }) {
             </li>
             <li className="flex gap-2">
               <Minus className="mt-0.5 size-4 shrink-0 text-open" aria-hidden />
-              One outbound request exists: pageview statistics from the Wikimedia API, sent only when
-              you press Load on a problem page.
+              Two outbound requests are possible, and neither happens on its own. Pageview statistics
+              come from the Wikimedia API when you press Load on a problem page. A video you attach
+              to a note contacts YouTube or Vimeo only when you press play — until then the app has
+              stored a link and drawn a placeholder, and has requested nothing, not even the
+              thumbnail.
+            </li>
+            <li className="flex gap-2">
+              <Check className="mt-0.5 size-4 shrink-0 text-solved" aria-hidden />
+              Images you attach are resized and re-encoded here, which also strips camera metadata
+              such as GPS coordinates. They are stored inside the note, so the vault encrypts them
+              with everything else and an export carries them with it.
             </li>
           </ul>
           <Note>
             There is no privacy policy to read because there is no data collection to describe. If
             that changes, this section changes first.
+          </Note>
+          <Note tone="warn">
+            Once you press play on an embedded video, that provider's rules apply, not this page's.
+            YouTube embeds use youtube-nocookie.com, which does not set its tracking cookie merely to
+            load the player — it is not the guarantee the name suggests, and playback still sets
+            storage. Vimeo has no equivalent domain and sets cookies as soon as its player loads.
           </Note>
         </Panel>
       </div>

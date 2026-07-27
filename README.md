@@ -77,6 +77,13 @@ self-assessed difficulty and hand-logged time. Per problem, in this browser.
 **Keep a journal.** LaTeX notes rendered with KaTeX, live preview, and the last 20 versions of each
 note kept and restorable.
 
+**Attach to it.** Images and infographics go straight into a note. They are resized and re-encoded
+in the browser, which also strips camera metadata such as GPS coordinates, and they live inside the
+entry so the vault encrypts them and an export carries them. A video is stored as a link behind a
+click-to-load facade: nothing is requested from YouTube or Vimeo until you press play, not even the
+thumbnail. Verified rather than asserted — the provider only appears in the page's resource list
+after the click.
+
 **Encrypt it.** AES-256-GCM with a key derived by PBKDF2-SHA256 at 600,000 iterations, in the page.
 The passphrase is never stored and never transmitted.
 

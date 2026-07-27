@@ -34,6 +34,7 @@ import {
 import { NoteBody, RichText } from '../components/Tex';
 import { MathEditor } from '../components/MathEditor';
 import { Share } from '../components/Share';
+import { AttachmentControls, AttachmentList } from '../components/Attachments';
 import { Sparkline } from '../components/Sparkline';
 
 interface Props {
@@ -353,6 +354,9 @@ export default function ProblemView({ problem, dataset, dark, online }: Props) {
             <article key={n.id} className="mb-4">
               <h3 className="font-semibold">{n.title}</h3>
               <NoteBody>{n.body}</NoteBody>
+              {/* Images print; a video facade is a button and would print as a
+                  blank box, so print only shows the images. */}
+              <AttachmentList attachments={(n.attachments ?? []).filter((a) => a.kind === 'image')} />
             </article>
           ))}
         </div>
@@ -688,6 +692,26 @@ function NotesPanel({ problem }: { problem: Problem }) {
               <NoteBody className="text-sm text-ink">{draft}</NoteBody>
             </div>
           )}
+
+          {/* Attachments write straight to the store rather than into `draft`.
+              An image is not text being edited: there is no meaningful "unsaved
+              image", and holding one in draft state would mean Discard silently
+              destroys a file the user just picked. */}
+          <AttachmentList
+            attachments={editing.attachments ?? []}
+            onRemove={(id) => store.removeAttachment(editing.id, id)}
+            onCaption={(id, caption) => store.updateAttachment(editing.id, id, { caption })}
+          />
+          <AttachmentControls
+            count={(editing.attachments ?? []).length}
+            usageFraction={store.attachmentUsage().fraction}
+            onAdd={(a) => store.addAttachment(editing.id, a)}
+          />
+
+          {/* A failed write is reported here because this is where the large
+              things get added. Silence would mean the note looks saved and is
+              gone on reload. */}
+          {store.lastSaveError && <Note tone="warn">{store.lastSaveError}</Note>}
           <div className="flex flex-wrap items-center gap-2">
             <Button variant="primary" size="sm" onClick={save} disabled={!dirty}>
               {dirty ? 'Save' : 'Saved'}
@@ -768,6 +792,8 @@ function NotesPanel({ problem }: { problem: Problem }) {
                 <p className="mt-0.5 font-mono text-[11px] text-ink-dim">
                   edited {n.updatedAt.slice(0, 10)}
                   {n.revisions.length > 0 && ` · ${n.revisions.length} earlier`}
+                  {(n.attachments?.length ?? 0) > 0 &&
+                    ` · ${n.attachments!.length} ${n.attachments!.length === 1 ? 'attachment' : 'attachments'}`}
                 </p>
               </button>
             </li>

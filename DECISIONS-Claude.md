@@ -148,6 +148,54 @@ Nothing scrolls sideways.
 invisible and undiscoverable, on the device with least room to spare. Verified: zero horizontal
 overflow across all 9 routes at 375 px.
 
+## 12. Attachments live inside the note, not in IndexedDB
+
+**Decision.** Images are stored as data URIs on the `JournalEntry`, inside `UserData`. Videos are
+stored as a link, never as bytes.
+
+**Why.** IndexedDB would buy far more room, and that is the only argument for it. The cost is that
+the bytes would sit outside the vault, outside the export file, and outside the import merge — so
+"your notes are encrypted at rest" would quietly stop being true for the part of a note most likely
+to be a photograph of someone's whiteboard, and an export would silently omit it. One store means
+one set of guarantees.
+
+**Cost, stated plainly.** The localStorage quota, roughly 5 MB and counted in UTF-16 code units in
+several browsers. Budgets are enforced in the store rather than the editor, because the quota is
+shared across every note and a per-editor check counts the wrong thing.
+
+**This forced a real bug fix.** `persist()` swallowed quota errors with a `console.warn`, and in
+vault mode the `setItem` sat inside a `.then()` outside the try, so it was an invisible unhandled
+rejection. Survivable while notes were text. With images it means writing a note, seeing it on
+screen, and losing it on reload. Failures are now surfaced in the editor.
+
+**Reversal condition.** A user hitting the ceiling in normal use. Then the move is the File System
+Access API with a persisted directory handle, not IndexedDB — it keeps the data somewhere the user
+can see and back up, which is the same reason scheduled backup was refused in item 5.
+
+## 13. Video is a facade, and the privacy claim got more precise rather than looser
+
+**Decision.** Embedded video renders as a locally drawn placeholder. The iframe is created on click.
+YouTube goes to `youtube-nocookie.com`; `frame-src` names exactly those two hosts and `connect-src`
+is deliberately not widened to match — a player may be framed, it may not be fetched from.
+
+**Why not a normal embed.** An ordinary YouTube iframe contacts Google on render, whether or not
+anyone watches. That is how a site ends up reporting every visitor to a third party while its
+privacy page says it does not. The placeholder does not fetch the provider's thumbnail either,
+because that request is the same disclosure in a smaller package.
+
+**What changed on the About page.** "One outbound request exists" became two, each described with
+the exact gesture that triggers it, plus a warning that once you press play the provider's rules
+apply and not this page's — including that youtube-nocookie is not the guarantee its name suggests,
+and that Vimeo has no equivalent domain. The claim got narrower and more specific. It would have
+been easier to leave the old sentence and hope nobody checked.
+
+**Checkable.** `attachments.test.ts` reads the shipped CSP out of `public/.htaccess` and asserts
+every host `embedUrl` can produce is permitted by `frame-src`, and that `connect-src` mentions
+neither provider. The first version of that test matched the explanatory comment above the directive
+instead of the directive itself, so it failed against a correct policy and would have passed against
+a broken one. A negative control caught it.
+
+
 ---
 
 ## Standing-rule conflicts, named

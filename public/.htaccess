@@ -78,7 +78,15 @@
   Header always set Referrer-Policy "strict-origin-when-cross-origin"
   Header always set X-Frame-Options "SAMEORIGIN"
   Header always set Permissions-Policy "geolocation=(), microphone=(), camera=(), interest-cohort=()"
-  Header always set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self' https://wikimedia.org https://en.wikipedia.org; manifest-src 'self'; base-uri 'self'; form-action 'none'; frame-ancestors 'self'; object-src 'none'"
+  # frame-src names the two video hosts a note may embed, and nothing else. The
+  # embed is behind a click-to-load facade, so no frame is created until the
+  # visitor presses play — but the policy has to permit the destination in
+  # advance, so it is listed. connect-src is deliberately NOT widened to match:
+  # a player may be framed, it may not be fetched from.
+  #
+  # img-src keeps data: because attachments are stored as data URIs, and adds
+  # blob: for the canvas step that resizes them. Neither reaches the network.
+  Header always set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://wikimedia.org https://en.wikipedia.org; manifest-src 'self'; frame-src https://www.youtube-nocookie.com https://player.vimeo.com; base-uri 'self'; form-action 'none'; frame-ancestors 'self'; object-src 'none'"
 </IfModule>
 
 # ---------------------------------------------------------------------------

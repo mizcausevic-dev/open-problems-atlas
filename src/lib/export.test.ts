@@ -182,3 +182,80 @@ describe('backup round trip', () => {
     );
   });
 });
+
+/**
+ * Attachments in exports.
+ *
+ * The two formats deliberately behave differently, and the difference is a
+ * decision rather than an inconsistency: Markdown can carry a data URI so it
+ * stays self-contained, LaTeX cannot so it lists what it left behind. Silently
+ * dropping part of a note is the outcome both are written to avoid.
+ *
+ * LaTeX escaping in this file has been wrong twice — once shipping
+ * `C:\Users` as `C:\textbackslash\{\}Users`, once turning `\url{` into an
+ * invalid unicode escape. Assert the literal output, not the intent.
+ */
+describe('attachments in exports', () => {
+  const data = {
+    schemaVersion: 1 as const,
+    tracked: {},
+    updatedAt: '2026-07-27',
+    journal: [
+      {
+        id: 'n1',
+        problemId: 'riemann-hypothesis',
+        title: 'Sketch',
+        body: 'See the diagram.',
+        createdAt: '2026-07-27',
+        updatedAt: '2026-07-27',
+        revisions: [],
+        attachments: [
+          {
+            id: 'a1',
+            kind: 'image' as const,
+            caption: 'Zero spacing',
+            addedAt: '2026-07-27',
+            data: 'data:image/jpeg;base64,AAAA',
+            width: 800,
+            height: 600,
+          },
+          {
+            id: 'a2',
+            kind: 'video' as const,
+            caption: 'Lecture',
+            addedAt: '2026-07-27',
+            url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+            provider: 'youtube' as const,
+            videoId: 'dQw4w9WgXcQ',
+          },
+        ],
+      },
+    ],
+  };
+  const problems = [{ id: 'riemann-hypothesis', title: 'Riemann hypothesis', field: 'Number theory' }] as never;
+
+  it('embeds the image in Markdown so the file stands alone', () => {
+    const md = toMarkdown(data, problems);
+    expect(md).toContain('![Zero spacing](data:image/jpeg;base64,AAAA)');
+    expect(md).toContain('[Lecture](https://www.youtube.com/watch?v=dQw4w9WgXcQ)');
+  });
+
+  it('emits real LaTeX commands, with single backslashes', () => {
+    const tex = toLaTeX(data, problems);
+    expect(tex).toContain('\\begin{itemize}');
+    expect(tex).toContain('\\end{itemize}');
+    expect(tex).toContain('\\url{https://www.youtube.com/watch?v=dQw4w9WgXcQ}');
+    // A doubled backslash would render as literal text in a .tex file.
+    expect(tex).not.toContain('\\\\begin{itemize}');
+  });
+
+  it('says out loud that LaTeX could not carry the image', () => {
+    expect(toLaTeX(data, problems)).toContain('Image not included in this format: Zero spacing');
+  });
+
+  it('leaves notes without attachments untouched in both formats', () => {
+    const bare = { ...data, journal: [{ ...data.journal[0]!, attachments: undefined }] };
+    expect(toMarkdown(bare, problems)).not.toContain('![');
+    expect(toLaTeX(bare, problems)).not.toContain('itemize');
+  });
+});
