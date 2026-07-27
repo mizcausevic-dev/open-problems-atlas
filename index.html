@@ -42,11 +42,19 @@
     <meta property="og:site_name" content="Open Problems Atlas" />
 
     <!--
-      summary, not summary_large_image. There is no 1200x630 card image yet, and
-      declaring summary_large_image without one produces a broken preview rather
-      than a small one. Upgrade the card at the same time as the image, not before.
+      Absolute URLs, not relative. Vite's base is './' so everything else in this
+      build is relative on purpose, but og:image is one of the few places that
+      breaks: crawlers resolve it against the page they fetched and several
+      simply reject a relative value, producing a card with no image at all.
     -->
-    <meta name="twitter:card" content="summary" />
+    <meta property="og:image" content="https://openmathproblems.kineticgain.com/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta
+      property="og:image:alt"
+      content="Open Problems Atlas. Every unsolved problem in mathematics, tracked. 591 tracked, 478 open, 105 solved, 8 partial."
+    />
+    <meta name="twitter:card" content="summary_large_image" />
     <script>
       // Applied before first paint so there is no light-mode flash on load.
       try {

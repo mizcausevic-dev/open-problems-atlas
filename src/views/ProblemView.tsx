@@ -27,11 +27,13 @@ import { findRelated } from '../lib/related';
 import { LAB_PROBLEM_IDS, COLLECTIONS, collectionMembers } from '../lib/collections';
 import { TRACK_HINT, TRACK_LABEL } from '../lib/fields';
 import { href } from '../lib/router';
+import { shareText } from '../lib/share';
 import {
   Button, Chip, EmptyState, ExternalLink, FieldChip, Note, Panel, SectionTitle, StatusChip, fmt,
 } from '../components/ui';
 import { NoteBody, RichText } from '../components/Tex';
 import { MathEditor } from '../components/MathEditor';
+import { Share } from '../components/Share';
 import { Sparkline } from '../components/Sparkline';
 
 interface Props {
@@ -112,9 +114,23 @@ export default function ProblemView({ problem, dataset, dark, online }: Props) {
               )}
             </div>
 
-            <h1 className="mt-3 text-2xl leading-tight font-semibold tracking-tight text-ink-strong sm:text-[2rem]">
-              {problem.title}
-            </h1>
+            <div className="mt-3 flex items-start justify-between gap-3">
+              {/* min-w-0 so a long title wraps instead of forcing the row wider
+                  than the viewport, which is the mobile blowout this codebase
+                  has hit before. */}
+              <h1 className="min-w-0 text-2xl leading-tight font-semibold tracking-tight text-ink-strong sm:text-[2rem]">
+                {problem.title}
+              </h1>
+              <div className="shrink-0 pt-1">
+                <Share
+                  text={shareText({
+                    title: problem.title,
+                    field: problem.field,
+                    status: problem.status,
+                  })}
+                />
+              </div>
+            </div>
 
             {problem.fieldSource === 'curated' && (
               <p className="mt-2 text-xs text-ink-dim">

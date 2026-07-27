@@ -13,7 +13,7 @@
 
 import { useDeferredValue, useEffect, useMemo, useState } from 'react';
 import {
-  Activity, Binary, Link2, Check, Grid3x3, LineChart, Sigma, SquareDivide, TrendingDown,
+  Activity, Binary, Grid3x3, LineChart, Sigma, SquareDivide, TrendingDown,
 } from 'lucide-react';
 import { EvidenceLab } from './lab/EvidenceLab';
 import { CoveringLab } from './lab/CoveringLab';
@@ -29,8 +29,10 @@ import {
   E_GAMMA, KNOWN_EXCEPTIONS, NEAR_MISSES, ROBIN_BOUND, ROBIN_SOURCE,
 } from '../lib/math/robin';
 import { href } from '../lib/router';
+import { shareText } from '../lib/share';
 import { Button, ExternalLink, Note, Panel, SectionTitle, Stat, fmt } from '../components/ui';
 import { Tex } from '../components/Tex';
+import { Share } from '../components/Share';
 
 const TOOLS = [
   { id: 'collatz', label: 'Collatz orbits', icon: Binary },
@@ -87,26 +89,21 @@ function useUrlNumber(
   return [value, setValue];
 }
 
-/** Copies the current URL, so a specific computation can be handed to someone. */
-function ShareLink() {
-  const [copied, setCopied] = useState(false);
-
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(window.location.href);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      // Clipboard access can be denied; the URL is in the address bar anyway.
-      setCopied(false);
-    }
-  };
-
+/**
+ * Shares the current URL, which in the Lab encodes the whole computation.
+ *
+ * The copy wording is deliberately different from the rest of the app. Every
+ * Lab input lives in the query string, so this link does not merely point at a
+ * tool — it reproduces the exact run, seed and range the sender was looking at.
+ * "Copy link" undersells that; "Copy this computation" is what it actually does.
+ */
+function ShareLink({ tool }: { tool: ToolId }) {
+  const label = TOOLS.find((t) => t.id === tool)?.label ?? 'the Lab';
   return (
-    <Button size="sm" onClick={copy} title="Copy a link that reproduces exactly this computation">
-      {copied ? <Check className="size-3.5 text-solved" aria-hidden /> : <Link2 className="size-3.5" aria-hidden />}
-      <span aria-live="polite">{copied ? 'Copied' : 'Copy link'}</span>
-    </Button>
+    <Share
+      text={shareText({ title: label })}
+      copyLabel="Copy this computation"
+    />
   );
 }
 
@@ -180,7 +177,7 @@ function PlotLabPanel({ query, setQuery }: { query: URLSearchParams; setQuery: P
       setRange={(f, t) => write({ from: String(f), to: String(t) })}
       integerOnly={integerOnly}
       setIntegerOnly={(v) => write({ int: v ? '1' : '0' })}
-      share={<ShareLink />}
+      share={<ShareLink tool="plot" />}
     />
   );
 }
@@ -202,7 +199,7 @@ function CoveringLabPanel({
       caseIndex={caseIndex}
       setCaseIndex={setCaseIndex}
       dark={dark}
-      share={<ShareLink />}
+      share={<ShareLink tool="covering" />}
     />
   );
 }
@@ -212,7 +209,7 @@ function EvidenceLabPanel({ query, setQuery }: { query: URLSearchParams; setQuer
   const [limit, setLimit] = useUrlNumber(query, setQuery, 'limit', 500_000, (v) =>
     Math.max(50_000, Math.min(1_000_000, Math.round(v / 50_000) * 50_000)),
   );
-  return <EvidenceLab limit={limit} setLimit={setLimit} share={<ShareLink />} />;
+  return <EvidenceLab limit={limit} setLimit={setLimit} share={<ShareLink tool="evidence" />} />;
 }
 
 // ---------------------------------------------------------------------------
@@ -249,7 +246,7 @@ function CollatzLab({ query, setQuery }: { query: URLSearchParams; setQuery: Pro
       <Panel className="p-4 sm:p-5">
         <SectionTitle
           hint="Halve if even, otherwise triple and add one. Does every start reach 1?"
-          right={<ShareLink />}
+          right={<ShareLink tool="collatz" />}
         >
           Collatz conjecture
         </SectionTitle>
@@ -416,7 +413,7 @@ function PrimesLab({ query, setQuery }: { query: URLSearchParams; setQuery: Prop
       <Panel className="p-4 sm:p-5">
         <SectionTitle
           hint="Every even number above 2 is a sum of two primes. Unproven since 1742."
-          right={<ShareLink />}
+          right={<ShareLink tool="primes" />}
         >
           Goldbach's conjecture
         </SectionTitle>
@@ -594,7 +591,7 @@ function ZetaLab({ query, setQuery }: { query: URLSearchParams; setQuery: Props[
       <Panel className="p-4 sm:p-5">
         <SectionTitle
           hint="Every nontrivial zero has real part one half. Open since 1859."
-          right={<ShareLink />}
+          right={<ShareLink tool="zeta" />}
         >
           Riemann hypothesis
         </SectionTitle>
@@ -742,7 +739,7 @@ function RobinLab({ query, setQuery }: { query: URLSearchParams; setQuery: Props
       <Panel className="p-4 sm:p-5">
         <SectionTitle
           hint="Equivalent to the Riemann hypothesis, using nothing but divisor sums"
-          right={<ShareLink />}
+          right={<ShareLink tool="robin" />}
         >
           Robin's inequality
         </SectionTitle>
