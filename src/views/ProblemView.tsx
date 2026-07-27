@@ -595,17 +595,29 @@ function NotesPanel({ problem }: { problem: Problem }) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
   const [draftTitle, setDraftTitle] = useState('');
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const textarea = useRef<HTMLTextAreaElement>(null);
 
   const editing = notes.find((n) => n.id === editingId);
+  const dirty = Boolean(editing && (draft !== editing.body || draftTitle !== editing.title));
 
   useEffect(() => {
     if (editing) {
       setDraft(editing.body);
       setDraftTitle(editing.title);
+      setConfirmDelete(false);
       textarea.current?.focus();
     }
   }, [editingId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Losing a half-written proof sketch to a stray Cmd-W is not recoverable —
+  // there is no server-side draft to fall back on.
+  useEffect(() => {
+    if (!dirty) return;
+    const warn = (e: BeforeUnloadEvent) => e.preventDefault();
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [dirty]);
 
   const create = () => {
     const entry = store.createEntry(problem.id, `Note on ${problem.title}`, '');
@@ -615,6 +627,11 @@ function NotesPanel({ problem }: { problem: Problem }) {
   const save = () => {
     if (!editingId) return;
     store.updateEntry(editingId, { title: draftTitle, body: draft });
+    setEditingId(null);
+  };
+
+  const cancel = () => {
+    if (dirty && !window.confirm('Discard your unsaved changes to this note?')) return;
     setEditingId(null);
   };
 
@@ -656,25 +673,44 @@ function NotesPanel({ problem }: { problem: Problem }) {
               <NoteBody className="text-sm text-ink">{draft}</NoteBody>
             </div>
           )}
-          <div className="flex gap-2">
-            <Button variant="primary" size="sm" onClick={save}>
-              Save
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="primary" size="sm" onClick={save} disabled={!dirty}>
+              {dirty ? 'Save' : 'Saved'}
             </Button>
-            <Button variant="quiet" size="sm" onClick={() => setEditingId(null)}>
-              Cancel
+            <Button variant="quiet" size="sm" onClick={cancel}>
+              {dirty ? 'Discard' : 'Close'}
             </Button>
-            <Button
-              variant="danger"
-              size="sm"
-              className="ml-auto"
-              onClick={() => {
-                store.deleteEntry(editing.id);
-                setEditingId(null);
-              }}
-            >
-              <Trash2 className="size-3.5" aria-hidden /> Delete
-            </Button>
+
+            {/* Two-step, because deleting a note destroys its revision history
+                too and nothing else holds a copy. */}
+            {confirmDelete ? (
+              <span className="ml-auto flex items-center gap-2">
+                <span className="text-xs text-danger">Delete permanently?</span>
+                <Button
+                  variant="danger"
+                  size="sm"
+                  onClick={() => {
+                    store.deleteEntry(editing.id);
+                    setEditingId(null);
+                  }}
+                >
+                  <Trash2 className="size-3.5" aria-hidden /> Yes
+                </Button>
+                <Button variant="quiet" size="sm" onClick={() => setConfirmDelete(false)}>
+                  No
+                </Button>
+              </span>
+            ) : (
+              <Button variant="danger" size="sm" className="ml-auto" onClick={() => setConfirmDelete(true)}>
+                <Trash2 className="size-3.5" aria-hidden /> Delete
+              </Button>
+            )}
           </div>
+          {dirty && (
+            <p className="text-[11px] text-open" role="status">
+              Unsaved changes.
+            </p>
+          )}
           {editing.revisions.length > 0 && (
             <details className="text-xs text-ink-dim">
               <summary className="cursor-pointer">

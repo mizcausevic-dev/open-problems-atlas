@@ -30,7 +30,7 @@ const TOOLS = [
   { id: 'collatz', label: 'Collatz orbits', icon: Binary },
   { id: 'primes', label: 'Goldbach & primes', icon: Sigma },
   { id: 'zeta', label: 'Zeta on the critical line', icon: Activity },
-  { id: 'robin', label: "Robin's inequality", icon: SquareDivide },
+  { id: 'robin', label: "Robin’s inequality", icon: SquareDivide },
 ] as const;
 
 type ToolId = (typeof TOOLS)[number]['id'];

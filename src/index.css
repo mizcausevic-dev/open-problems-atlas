@@ -148,6 +148,17 @@ table,
   border-radius: 3px;
 }
 
+/* Text fields set outline:none and change their border colour on focus. A
+   border recolour alone is a weak indicator — it shifts one pixel of hue on a
+   low-contrast edge — so keyboard focus also gets a ring. Mouse focus keeps the
+   quieter border-only treatment. */
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: 2px solid var(--c-accent);
+  outline-offset: 1px;
+}
+
 ::selection {
   background: var(--c-accent);
   color: var(--c-bg);
