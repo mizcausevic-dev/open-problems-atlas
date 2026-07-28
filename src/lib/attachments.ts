@@ -200,6 +200,35 @@ export function embedUrl(a: Pick<Attachment, 'provider' | 'videoId'>): string | 
   return null;
 }
 
+/**
+ * Attributes shared by every video iframe in the app. One constant, because the
+ * two embed sites drifted apart once already and the drift shipped broken.
+ *
+ * `referrerPolicy` is the part that matters, and it is set to
+ * 'strict-origin-when-cross-origin' rather than 'no-referrer' for a reason found
+ * the hard way: **'no-referrer' breaks YouTube playback outright**. The player
+ * reports error 153, "Video player configuration error", and shows a black frame
+ * with a link out to YouTube. Reproduced on the deployed site — two iframes
+ * differing only in this attribute, the 'no-referrer' one emitting onError 153
+ * and the other emitting nothing.
+ *
+ * Nothing was gained by the stricter value. 'strict-origin-when-cross-origin'
+ * sends the origin without the path, so YouTube learns the site but not which
+ * page — and it already learns the site from the `origin=` parameter the API
+ * handshake requires. It is also exactly the site-wide Referrer-Policy in
+ * public/.htaccess, so the override was only ever making one element stricter
+ * than the document containing it.
+ *
+ * `sandbox` was tested at the same time and is not implicated: variants with and
+ * without it behaved identically. allow-same-origin is required for playback, so
+ * this reduces the frame's reach rather than isolating it.
+ */
+export const EMBED_IFRAME = {
+  referrerPolicy: 'strict-origin-when-cross-origin' as const,
+  sandbox: 'allow-scripts allow-same-origin allow-presentation allow-popups',
+  allow: 'accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture',
+};
+
 export function newVideoAttachment(input: string, caption = ''): Attachment {
   const parsed = parseVideoUrl(input);
   if (!parsed) {

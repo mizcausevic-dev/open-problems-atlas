@@ -15,6 +15,7 @@ import { ImagePlus, Play, Trash2, Video, X } from 'lucide-react';
 import type { Attachment } from '../lib/attachments';
 import {
   AttachmentError,
+  EMBED_IFRAME,
   MAX_ATTACHMENTS_PER_ENTRY,
   embedUrl,
   encodeImage,
@@ -36,14 +37,11 @@ function VideoFacade({ attachment }: { attachment: Attachment }) {
           src={src}
           title={attachment.caption || `${providerName} video`}
           className="size-full"
-          allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture"
           allowFullScreen
-          // Neither attribute is decorative. referrerpolicy withholds which page
-          // the visitor was reading; sandbox drops the frame's ability to reach
-          // back into this origin. allow-same-origin is required for playback,
-          // so this is a reduction in reach, not an isolation guarantee.
-          referrerPolicy="no-referrer"
-          sandbox="allow-scripts allow-same-origin allow-presentation allow-popups"
+          // Shared with the intro video via EMBED_IFRAME. referrerPolicy is
+          // deliberately NOT 'no-referrer': that value makes YouTube refuse to
+          // play with error 153. See the constant for the reproduction.
+          {...EMBED_IFRAME}
         />
       </div>
     );

@@ -22,6 +22,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Play, X } from 'lucide-react';
+import { EMBED_IFRAME } from '../lib/attachments';
 
 const STORE_KEY = 'opa.intro.v1';
 export const PLAYER_ORIGIN = 'https://www.youtube-nocookie.com';
@@ -159,10 +160,8 @@ export function IntroVideo({ videoId, title, channel }: Props) {
             )}`}
             title={title}
             className="size-full"
-            allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture"
             allowFullScreen
-            referrerPolicy="no-referrer"
-            sandbox="allow-scripts allow-same-origin allow-presentation allow-popups"
+            {...EMBED_IFRAME}
           />
         </div>
       ) : (

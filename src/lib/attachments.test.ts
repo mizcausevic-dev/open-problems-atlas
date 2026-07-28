@@ -10,6 +10,7 @@ import {
   AttachmentError,
   MAX_TOTAL_ATTACHMENT_CHARS,
   MAX_ATTACHMENT_CHARS,
+  EMBED_IFRAME,
 } from './attachments';
 
 describe('parseVideoUrl', () => {
@@ -171,5 +172,40 @@ describe('budget accounting', () => {
   it('keeps a single attachment well inside the shared budget', () => {
     // A per-item cap at or above the total would make the total meaningless.
     expect(MAX_ATTACHMENT_CHARS * 4).toBeLessThan(MAX_TOTAL_ATTACHMENT_CHARS);
+  });
+});
+
+describe('embed iframe attributes', () => {
+  /**
+   * The regression that shipped. referrerPolicy="no-referrer" makes YouTube
+   * refuse to play: the player emits error 153, "Video player configuration
+   * error", and renders a black frame with a link out to YouTube. It was
+   * reproduced on the deployed site by running two iframes side by side that
+   * differed only in this attribute — the no-referrer one emitted onError 153,
+   * the other emitted nothing — and it reproduced both with and without the
+   * `origin=` parameter, so it affected the journal embeds too.
+   *
+   * The stricter value bought nothing: the API handshake passes `origin=` in
+   * the URL anyway, so YouTube already knows the site.
+   */
+  it('never uses no-referrer, which breaks YouTube playback with error 153', () => {
+    expect(EMBED_IFRAME.referrerPolicy).not.toBe('no-referrer');
+  });
+
+  it('still withholds the path, sending only the origin', () => {
+    // The middle ground, and the same value as the site-wide Referrer-Policy
+    // header: YouTube learns the site, not which problem was being read.
+    expect(EMBED_IFRAME.referrerPolicy).toBe('strict-origin-when-cross-origin');
+  });
+
+  it('matches the site-wide Referrer-Policy rather than fighting it', () => {
+    const htaccess = readFileSync(resolve(process.cwd(), 'public/.htaccess'), 'utf8');
+    const header = /Referrer-Policy\s+"([^"]+)"/.exec(htaccess)?.[1];
+    expect(header).toBe(EMBED_IFRAME.referrerPolicy);
+  });
+
+  it('keeps allow-same-origin, which playback requires', () => {
+    expect(EMBED_IFRAME.sandbox).toContain('allow-same-origin');
+    expect(EMBED_IFRAME.sandbox).toContain('allow-scripts');
   });
 });
