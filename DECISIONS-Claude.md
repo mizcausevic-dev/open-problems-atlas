@@ -247,6 +247,37 @@ and the real path therefore cannot be exercised in a browser harness.
 a reduced-motion preference — would otherwise leave the card on screen permanently.
 
 
+## 16. The quiz has no JavaScript, and no Practice Problems markup
+
+**Decision.** Reveal is `<details>`/`<summary>`. Structured data is `Quiz` with
+`eduQuestionType: "Flashcard"`, and deliberately not Practice Problems.
+
+**Why no script.** `<details>` is native, keyboard-operable, announced correctly, and works with
+scripting off. It also keeps every answer and explanation in the served HTML, which is the whole
+reason to publish a quiz as pages rather than as a widget — a JS flip-card hides the content from the
+crawler it was built to attract. Secondarily, `build-seo.mjs` pins `script-src` to the sha256 of one
+inline script, so a second distinct inline script would be blocked at runtime with only a console
+error to show for it.
+
+**Why not Practice Problems markup.** Google deprecated that feature in November 2025 and removed it
+from Search in January 2026. Emitting it would be markup for a rich result that no longer exists.
+`Quiz` still feeds the Education Q&A flashcard carousel, which is current — but limited to education
+queries in English, Portuguese, Vietnamese and Mexican Spanish, so it is worth having and not worth
+counting on.
+
+**Answer positions are rotated at build time.** Authored order put 31 of 42 correct answers at
+option B and none at D, so guessing B scored 74% without knowing any mathematics. `balancedOptions`
+rotates each question so the answer lands at a target derived from a running index across all decks,
+giving 11/11/10/10. Rotation rather than a shuffle keeps deliberately-adjacent near-miss options
+together, and a deterministic target rather than `Math.random` keeps the build reproducible — a
+random shuffle would produce a different answer key on every deploy.
+
+**Two questions from the reviewed draft were dropped, not fixed.** They asked about this application
+rather than about mathematics: one made an unverified claim about a cryptographic primitive, and the
+other's designated correct answer was itself false. A quiz teaches its answers, so a wrong answer is
+worse than a missing question. A test now rejects self-referential questions outright.
+
+
 ---
 
 ## Standing-rule conflicts, named

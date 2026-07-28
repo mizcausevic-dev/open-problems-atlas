@@ -85,6 +85,12 @@ not connected ones, that the abc conjecture needs coprimality and bounds against
 are static pages at real paths, not app routes, because a crawler indexes the DOM after JavaScript
 runs and a hash-routed view is not a URL.
 
+**Check whether it stuck.** A quiz at [/quiz/](https://openmathproblems.kineticgain.com/quiz/):
+42 questions across 6 decks, every answer explained and linked to the glossary entry it came from.
+No JavaScript — reveal is a native `<details>`, which keeps every answer in the served HTML rather
+than hiding it inside a widget. Answer positions are rotated deterministically at build time, because
+authoring order put 31 of 42 correct answers at option B and none at D.
+
 **Attach to it.** Images and infographics go straight into a note. They are resized and re-encoded
 in the browser, which also strips camera metadata such as GPS coordinates, and they live inside the
 entry so the vault encrypts them and an export carries them. A video is stored as a link behind a
@@ -128,7 +134,7 @@ Written down rather than implied, and repeated in the app's own About page:
 
 ## Correctness
 
-`npm test` runs 430 tests across 26 files. The ones that matter:
+`npm test` runs 453 tests across 27 files. The ones that matter:
 
 - **Zeta** — the first ten nontrivial zeros are located to 8 decimal places and checked against
   published values; `ζ(2)`, `ζ(4)`, `ζ(6)` and `ζ(1/2)` against their closed forms; the count of

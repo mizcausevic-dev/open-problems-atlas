@@ -7,7 +7,7 @@
   "license": "MIT",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build && node scripts/build-glossary.mjs && node scripts/inject-precache.mjs && node scripts/build-seo.mjs",
+    "build": "tsc --noEmit && vite build && node scripts/build-glossary.mjs && node scripts/build-quiz.mjs && node scripts/inject-precache.mjs && node scripts/build-seo.mjs",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",

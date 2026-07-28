@@ -20,6 +20,7 @@ import { createHash } from 'node:crypto';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { TERMS } from '../src/data/glossary.mjs';
+import { DECKS } from '../src/data/quiz.mjs';
 
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const SITE = 'https://openmathproblems.kineticgain.com';
@@ -46,6 +47,19 @@ const glossaryUrls = TERMS.map(
   </url>`,
 ).join('\n');
 
+const quizUrls = [
+  `  <url>
+    <loc>${SITE}/quiz/</loc>
+    <lastmod>${lastmod}</lastmod>
+  </url>`,
+  ...DECKS.map(
+    (d) => `  <url>
+    <loc>${SITE}/quiz/${d.slug}/</loc>
+    <lastmod>${lastmod}</lastmod>
+  </url>`,
+  ),
+].join('\n');
+
 const sitemap = `<?xml version="1.0" encoding="UTF-8"?>
 <!--
   The application is one entry: it is a hash-routed single-page app, every view
@@ -65,6 +79,7 @@ const sitemap = `<?xml version="1.0" encoding="UTF-8"?>
     <lastmod>${lastmod}</lastmod>
   </url>
 ${glossaryUrls}
+${quizUrls}
 </urlset>
 `;
 
@@ -147,7 +162,7 @@ writeFileSync(resolve(REPO, 'dist/sitemap.xml'), sitemap, 'utf8');
 writeFileSync(resolve(REPO, 'dist/robots.txt'), robots, 'utf8');
 
 console.log(
-  `SEO: sitemap.xml (${TERMS.length + 2} urls: app, glossary index, ${TERMS.length} terms; lastmod ${lastmod}), robots.txt, security.txt written`,
+  `SEO: sitemap.xml (${TERMS.length + DECKS.length + 3} urls: app, ${TERMS.length} glossary, ${DECKS.length} quiz decks; lastmod ${lastmod}), robots.txt, security.txt written`,
 );
 
 // ---------------------------------------------------------------------------
