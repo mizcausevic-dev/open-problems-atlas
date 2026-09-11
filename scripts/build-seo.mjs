@@ -195,7 +195,16 @@ console.log(
 // a template is a claim that silently expires.
 // ---------------------------------------------------------------------------
 
-const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+// Escapes " too, unlike this file's earlier version. Both of this file's own
+// href="${esc(...)}" call sites only ever receive two hardcoded constants
+// (dataset.meta.source.url/licenseUrl, set as literals in build-dataset.mjs),
+// so the gap a CodeQL scan flagged was not reachable today — but esc() here
+// was inconsistent with the already-correct version in build-glossary.mjs and
+// build-quiz.mjs, which do interpolate into attributes with less-constrained
+// values. One esc() that is actually correct beats three that are safe only
+// by what currently happens to call them.
+const esc = (s) =>
+  String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 const problems = dataset.problems;
 const byStatus = problems.reduce((a, p) => ({ ...a, [p.status]: (a[p.status] ?? 0) + 1 }), {});

@@ -200,6 +200,19 @@ function resolveLinks(s) {
 function cleanInline(s) {
   return s
     .replace(/<!--[\s\S]*?-->/g, '')
+    // A CodeQL scan flagged the paired-comment removal above as incomplete: a
+    // malformed, unclosed `<!--` with no matching `-->` survives it untouched.
+    // Real MediaWiki wikitext comments are always well-formed, so this has never
+    // fired against the actual article, but the fix is one line and costs
+    // nothing, so it stays as a safety net rather than an assumption.
+    .replace(/<!--/g, '')
+    // script/style are the two HTML elements whose CONTENT is not meant to be
+    // read as text at all, so they are removed body-and-tag together, before
+    // the generic tag-strip below. Without this, `<script>alert(1)</script>`
+    // would lose its tags and leave the literal text `alert(1)` sitting in the
+    // article prose — inert on this site's own render path (nothing here ever
+    // interprets extracted text as HTML), but still wrong output.
+    .replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1>/gi, '')
     .replace(/'''/g, '')
     .replace(/''/g, '')
     .replace(/&nbsp;/g, ' ')
@@ -207,7 +220,22 @@ function cleanInline(s) {
     .replace(/&mdash;/g, '—')
     .replace(/&amp;/g, '&')
     .replace(/&minus;/g, '−')
-    .replace(/<\/?(?:small|big|sup|sub|span|br\s*\/?|nowiki|div|em|i|b)[^>]*>/g, '')
+    // Was a fixed whitelist of inline wiki tags (small/big/sup/sub/span/br/
+    // nowiki/div/em/i/b). CodeQL correctly pointed out that this is a strip
+    // list, not a sanitizer: anything outside the whitelist, `<iframe>` among
+    // it, passed straight through untouched. The purpose of this function is
+    // to remove ALL inline HTML noise from extracted prose, not to preserve a
+    // curated subset, so the fix is to match any tag shape rather than a named
+    // few. This can only remove more text than before, never less, so the
+    // failure direction if it is ever too aggressive is a stripped fragment of
+    // visible prose, not a surviving live tag. Re-scraping to regenerate the
+    // committed dataset is a deliberate, separate act in this project (see
+    // CONTRIBUTING.md) and was deliberately NOT done to verify this change;
+    // instead it was checked against representative inline markup this
+    // function already had to handle, plus the adversarial cases a scanner
+    // flagged, with no network access. See the comment above the call site
+    // in `main()` for exactly what was run.
+    .replace(/<\/?[a-zA-Z][^>]*>/g, '')
     .replace(/\[https?:\/\/\S+?\s+([^\]]+)\]/g, '$1')
     .replace(/\s+/g, ' ')
     .trim();
