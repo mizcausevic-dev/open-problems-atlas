@@ -256,7 +256,16 @@ export default function AboutView({ dataset }: { dataset: Dataset }) {
           <ul className="space-y-2 text-sm text-ink">
             <li className="flex gap-2">
               <Check className="mt-0.5 size-4 shrink-0 text-solved" aria-hidden />
-              No analytics, no tracking scripts, no cookies.
+              No analytics or tracking script anywhere in this app's own code, and nothing in it ever
+              writes a cookie.
+            </li>
+            <li className="flex gap-2">
+              <Minus className="mt-0.5 size-4 shrink-0 text-open" aria-hidden />
+              This page does not isolate its cookies from the rest of kineticgain.com. Cookie scope
+              follows the domain, not the code that asked for it, so if another property under that
+              domain has set one, your browser can carry it here too. Check for yourself:
+              open dev tools and look at <code>document.cookie</code>. That is a property of shared
+              subdomain hosting, not something this app requests, reads, or writes.
             </li>
             <li className="flex gap-2">
               <Check className="mt-0.5 size-4 shrink-0 text-solved" aria-hidden />
